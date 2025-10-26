@@ -1818,7 +1818,8 @@
             const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5dGZlampxZXJvZ3lzdXpvYm5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0NTQyNDAsImV4cCI6MjA3NzAzMDI0MH0.6j6U4k_O1wi_yI-V1XFHF21B-sTmDOZYD87m3Q-rgwM";
             
             try {
-                supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                // CORRECCIÓN: Usar 'window.supabase.createClient' en lugar de 'supabase.createClient'
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             } catch (error) {
                 console.error("Error connecting to Supabase:", error);
                 loadingScreen.innerHTML = `<p class="text-red-500">Error de conexión a la base de datos.</p>`;
@@ -1838,6 +1839,15 @@
                 showLoginScreen();
             }
             
+            // Ocultar el campo de Client ID de Google ya que está prefijado
+            const googleClientIdContainer = document.getElementById('google-client-id');
+            if (googleClientIdContainer) {
+                 googleClientIdContainer.style.display = 'none';
+                 const label = document.querySelector('label[for="google-client-id"]');
+                 if (label) label.style.display = 'none';
+            }
+
+
             // Navegación Calendario
             document.getElementById('prev-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderAll(); });
             document.getElementById('next-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderAll(); });
