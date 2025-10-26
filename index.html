@@ -1810,6 +1810,123 @@
                 document.body.removeChild(link);
             }
         };
+        
+        // --- GOOGLE TASKS API ---
+        
+        async function loadGoogleTasksApi() {
+            try {
+                await gapi.client.load(DISCOVERY_DOC);
+                googleAuthContainer.classList.add('hidden');
+                googleSyncControls.classList.remove('hidden');
+                await listTaskLists();
+            } catch (e) {
+                console.error("Error loading GAPI client", e);
+                showToast("Error al cargar la API de Google Tasks.");
+                disconnectFromGoogle();
+            }
+        }
+
+        function disconnectFromGoogle() {
+            const token = gapi.client.getToken();
+            if (token) {
+                google.accounts.oauth2.revoke(token.access_token, () => {
+                    gapi.client.setToken(null);
+                    sessionStorage.removeItem('google_access_token');
+                    googleAuthContainer.classList.remove('hidden');
+                    googleSyncControls.classList.add('hidden');
+                    googleTaskListsSelect.innerHTML = '';
+                    showToast('Desconectado de Google.', 'success');
+                });
+            }
+        }
+
+        async function listTaskLists() {
+            try {
+                const response = await gapi.client.tasks.tasklists.list();
+                const taskLists = response.result.items;
+                googleTaskListsSelect.innerHTML = '';
+                if (taskLists && taskLists.length > 0) {
+                    taskLists.forEach(list => {
+                        googleTaskListsSelect.innerHTML += `<option value="${list.id}">${list.title}</option>`;
+                    });
+                } else {
+                    googleTaskListsSelect.innerHTML = '<option value="">No se encontraron listas</option>';
+                }
+            } catch (e) {
+                console.error("Error listing task lists", e);
+                showToast("Error al obtener las listas de tareas.");
+                disconnectFromGoogle();
+            }
+        }
+
+        async function handleSyncToGoogle() {
+            if (isLocked) {
+                promptForPassword();
+                return;
+            }
+            const tasklist = googleTaskListsSelect.value;
+            if (!tasklist) {
+                showToast("Por favor, selecciona una lista de tareas.");
+                return;
+            }
+
+            syncGoogleBtn.disabled = true;
+            syncGoogleBtn.textContent = "Sincronizando...";
+
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const monthName = currentDate.toLocaleString('es-ES', { month: 'long' });
+            
+            const pharmacyName = allPharmacies.find(p => p.id === currentPharmacyId)?.name || 'Farmacia';
+            const batch = gapi.client.newBatch();
+            let taskCount = 0;
+
+            const filteredTasks = tasks.filter(task => (filters.employee === 'all' || task.assignedTo == filters.employee) && (filters.type === 'all' || task.type === filters.type));
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(Date.UTC(year, month, day));
+                const tasksForDay = getTasksForDate(date, filteredTasks);
+
+                for (const task of tasksForDay) {
+                    taskCount++;
+                    const employeeName = getEmployeeNameById(task.assignedTo);
+                    const title = `[${pharmacyName}] ${task.title} - (${employeeName})`;
+                    const notes = `Tipo: ${task.type}\nEstimado: ${task.estimatedTime} min\nEnlace: ${task.url || 'N/A'}`;
+                    
+                    const gTask = {
+                        'title': title,
+                        'notes': notes,
+                        'due': new Date(date.getTime() + date.getTimezoneOffset() * 60000).toISOString()
+                    };
+                    
+                    batch.add(gapi.client.tasks.tasks.insert({
+                        'tasklist': tasklist,
+                        'resource': gTask
+                    }));
+                }
+            }
+
+            if (taskCount === 0) {
+                showToast("No hay tareas para sincronizar en este mes.");
+                syncGoogleBtn.disabled = false;
+                syncGoogleBtn.textContent = "Sincronizar Tareas";
+                return;
+            }
+            
+            try {
+                await batch;
+                showToast(`${taskCount} tareas sincronizadas con Google.`, 'success');
+            } catch(e) {
+                console.error("Error during batch sync", e);
+                showToast("Error al sincronizar las tareas.");
+                disconnectFromGoogle();
+            }
+            
+            syncGoogleBtn.disabled = false;
+            syncGoogleBtn.textContent = "Sincronizar Tareas";
+        }
+
 
         // --- INICIALIZACIÓN Y EVENTOS ---
         async function init() {
@@ -1818,7 +1935,6 @@
             const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5dGZlampxZXJvZ3lzdXpvYm5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0NTQyNDAsImV4cCI6MjA3NzAzMDI0MH0.6j6U4k_O1wi_yI-V1XFHF21B-sTmDOZYD87m3Q-rgwM";
             
             try {
-                // CORRECCIÓN: Usar 'window.supabase.createClient' en lugar de 'supabase.createClient'
                 supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             } catch (error) {
                 console.error("Error connecting to Supabase:", error);
