@@ -253,6 +253,21 @@
                 <h2 class="text-lg font-semibold mb-3 border-b pb-2">Administración</h2>
                 <button id="manage-pharmacies-btn" class="w-full text-sm text-blue-600 hover:underline text-left">Gestionar Farmacias</button>
            </div>
+           
+            <!-- Integración con Google Tasks -->
+            <div id="google-tasks-integration">
+                <h2 class="text-lg font-semibold mb-3 border-b pb-2">Integración con Google</h2>
+                <div id="google-auth-container">
+                    <button id="connect-google-btn" class="w-full bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-300">Conectar con Google</button>
+                </div>
+                <div id="google-sync-controls" class="hidden space-y-2 mt-2">
+                     <p class="text-sm font-medium text-green-700">Conectado a Google.</p>
+                    <label for="google-task-lists" class="text-sm font-medium">Lista de Tareas de Google:</label>
+                    <select id="google-task-lists" class="w-full border-gray-300 rounded-lg shadow-sm"></select>
+                    <button id="sync-google-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-blue-700 protected-control">Sincronizar Tareas</button>
+                    <button id="disconnect-google-btn" class="w-full text-sm text-red-600 hover:underline">Desconectar</button>
+                </div>
+            </div>
             
         </aside>
 
@@ -547,7 +562,7 @@
                     </ul>
                 </div>
                  <div>
-                    <h3 class="text-lg font-bold mb-2" style="color: #25af0f;">8. Integración con Google Tasks</h3>
+                    <h3 class="text-lg font-bold mb-2" style="color: #25af0f;">8. Integración con Google Tasks (Opcional)</h3>
                     <ul class="list-disc list-inside space-y-1">
                          <li><strong>Objetivo:</strong> Sincronizar las tareas de esta aplicación con una de tus listas de Google Tasks para poder verlas en tu móvil o en Google Calendar.</li>
                         <li><strong>Obtener Client ID (Paso único):</strong>
@@ -581,9 +596,9 @@
 
     <script type="module">
     document.addEventListener('DOMContentLoaded', async () => {
-        // --- INSTANCIAS Y CONFIGURACIÓN DE FIREBASE ---
-        let db, auth;
-        let unsubscribePharmacyData = () => {}; // Función para cancelar la suscripción de onSnapshot
+        // --- INSTANCIAS Y CONFIGURACIÓN DE SUPABASE ---
+        let supabase;
+        let pharmacyDataSubscription;
         
         // --- ESTADO Y DATOS LOCALES ---
         let currentDate = new Date();
@@ -700,60 +715,105 @@
           return hash.toString();
         };
 
-        // --- FUNCIONES DE FIREBASE ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-        // Definición de referencias a documentos de Firestore
-        const getPharmaciesRef = () => window.firebase.doc(db, `artifacts/${appId}/public/data/config`, 'pharmacies');
-        const getPasswordsRef = () => window.firebase.doc(db, `artifacts/${appId}/public/data/config`, 'passwords');
-        const getPharmacyDataRef = (pharmacyId) => window.firebase.doc(db, `artifacts/${appId}/public/data/pharmacyData`, String(pharmacyId));
+        // --- FUNCIONES DE SUPABASE ---
         
         async function loadGlobalData() {
-            const pharmaciesDoc = await window.firebase.getDoc(getPharmaciesRef());
-            if (pharmaciesDoc.exists() && pharmaciesDoc.data().list) {
-                allPharmacies = pharmaciesDoc.data().list;
+            const { data: pharmaciesData, error: pharmaciesError } = await supabase
+                .from('pharmacies')
+                .select('id, name');
+            
+            if (pharmaciesError) {
+                console.error('Error fetching pharmacies:', pharmaciesError);
+            } else if (pharmaciesData && pharmaciesData.length > 0) {
+                allPharmacies = pharmaciesData;
             } else {
                 await generateInitialPharmacies();
             }
 
-            const passwordsDoc = await window.firebase.getDoc(getPasswordsRef());
-            if (passwordsDoc.exists()) {
-                allPasswords = passwordsDoc.data();
+            const { data: passwordsData, error: passwordsError } = await supabase
+                .from('passwords')
+                .select('key, hash');
+
+            if (passwordsError) {
+                console.error('Error fetching passwords:', passwordsError);
+            } else if (passwordsData && passwordsData.length > 0) {
+                allPasswords = passwordsData.reduce((acc, curr) => {
+                    acc[curr.key] = curr.hash;
+                    return acc;
+                }, {});
             } else {
-                 document.getElementById('initial-setup-message').classList.remove('hidden');
+                document.getElementById('initial-setup-message').classList.remove('hidden');
             }
         }
 
         async function generateInitialPharmacies() {
             const pharmacyNames = ["ALBUFERA","ALCORCON","ANTONIO LEYVA","ARANJUEZ","ARGANDA","ARROYO DEL OLIVAR","ATOCHA","AVENIDA BRUSELAS","AVENIDA PUERTO","BENIDORM","BETANZOS","BURJASSOT","CAMPANAR","CANILLEJAS","CARRETERIA","CASTELO","CHAMARTIN","DELICIAS","ESPAÑA","EUROPA","EZEQUIEL SOLANA","FUENGIROLA","FUENLABRADA","GETAFE","GUILLEM DE CASTRO","GUZMAN EL BUENO","HERNANI","LA ELIANA","LAGOH","LEGANES","LUCHANA","MAJADAHONDA","MARIO CABRE","MARQUES DE LA VALDAVIA","MARQUES DE ZAFRA","MARTINEZ DE LA RIVA","MEDITERRANEO","MOLINA DE SEGURA","MONFORTE","MONTEOLIVETE","MORATALAZ","MOSTOLES","MOSTOLES SOTO","NIZA","NOBLEJAS","OPORTO","ORENSE","PARLA ESTE","PASEO DE EXTREMADURA","PAU 5, PLAYA SAN JUAN","PEÑALVER","POZUELO","QUIÑON","REQUENA","RETIRO","SAN BLAS","SAN FERNANDO","SAN JAIME","SAN JOSE DE VALDERAS","SAN MARTIN DE LA VEGA","TORREJON","TORRELAGUNA","TORREVIEJA","TRES FORQUES","TRINITAT","URGEL","URQUIJO","USERA","VALDEBEBAS","VALL DE UXO","VALLADOLID","VICTOR DE LA SERNA","VILLAVERDE","XIRIVELLA","ZARZAQUEMADA"];
             allPharmacies = pharmacyNames.map((name, index) => ({ id: index + 1, name: name }));
-            await window.firebase.setDoc(getPharmaciesRef(), { list: allPharmacies });
+            const { error } = await supabase.from('pharmacies').insert(allPharmacies);
+            if (error) console.error('Error generating initial pharmacies:', error);
         }
 
         async function saveAllPharmacies() {
-             await window.firebase.setDoc(getPharmaciesRef(), { list: allPharmacies });
+             const { error } = await supabase.from('pharmacies').upsert(allPharmacies);
+             if (error) console.error('Error saving pharmacies:', error);
         }
         
         async function savePasswords() {
-            await window.firebase.setDoc(getPasswordsRef(), allPasswords);
+            const passwordsArray = Object.keys(allPasswords).map(key => ({
+                key: key,
+                hash: allPasswords[key]
+            }));
+            const { error } = await supabase.from('passwords').upsert(passwordsArray);
+            if (error) console.error('Error saving passwords:', error);
         }
 
         async function savePharmacyData() {
             if (!currentPharmacyId) return;
-            await window.firebase.setDoc(getPharmacyDataRef(currentPharmacyId), { tasks, employees });
+            const { error } = await supabase
+                .from('pharmacy_data')
+                .update({ tasks: tasks, employees: employees })
+                .eq('id', currentPharmacyId);
+            if (error) console.error('Error saving pharmacy data:', error);
+        }
+
+        async function createInitialPharmacyData(pharmacyId) {
+            employees = [
+                { id: 1, name: 'Gerente' }, { id: 2, name: 'Adjunto Gt' }, { id: 3, name: 'Dinamizador Dermo' },
+                { id: 4, name: 'Equipo 1' }, { id: 5, name: 'Equipo 2' }, { id: 6, name: 'Equipo 3' },
+                { id: 7, name: 'Equipo 4' }, { id: 8, name: 'Equipo 5' }
+            ];
+            tasks = [];
+            
+            const { error } = await supabase
+                .from('pharmacy_data')
+                .insert({ id: pharmacyId, tasks: tasks, employees: employees });
+            
+            if (error) {
+                console.error('Error creating initial pharmacy data:', error);
+            } else {
+                renderAll();
+            }
         }
 
         function listenToPharmacyData(pharmacyId) {
-            unsubscribePharmacyData(); // Cancelar la escucha anterior
-            const pharmacyDataRef = getPharmacyDataRef(pharmacyId);
-            unsubscribePharmacyData = window.firebase.onSnapshot(pharmacyDataRef, (doc) => {
-                let needsUpdate = false;
-                if (doc.exists()) {
-                    const data = doc.data();
+            if (pharmacyDataSubscription) {
+                pharmacyDataSubscription.unsubscribe();
+            }
+            
+            pharmacyDataSubscription = supabase
+                .channel(`pharmacy-data-${pharmacyId}`)
+                .on('postgres_changes', {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'pharmacy_data',
+                    filter: `id=eq.${pharmacyId}`
+                }, payload => {
+                    console.log('Realtime update received:', payload);
+                    const data = payload.new;
                     tasks = data.tasks || [];
                     employees = data.employees || [];
-
-                    // --- Data Migration ---
+                    
+                    let needsMigration = false;
                     tasks.forEach(task => {
                         if (task.completedDates && Array.isArray(task.completedDates)) {
                             task.completedInstances = task.completedDates.map(dateStr => ({
@@ -761,30 +821,63 @@
                                 time: task.estimatedTime
                             }));
                             delete task.completedDates;
-                            needsUpdate = true;
+                            needsMigration = true;
                         }
                         if (!task.completedInstances) {
                             task.completedInstances = [];
                         }
                     });
-                } else {
-                    // Si no existe, creamos los empleados por defecto
-                    employees = [
-                        { id: 1, name: 'Gerente' }, { id: 2, name: 'Adjunto Gt' }, { id: 3, name: 'Dinamizador Dermo' },
-                        { id: 4, name: 'Equipo 1' }, { id: 5, name: 'Equipo 2' }, { id: 6, name: 'Equipo 3' },
-                        { id: 7, name: 'Equipo 4' }, { id: 8, name: 'Equipo 5' }
-                    ];
-                    tasks = [];
-                    needsUpdate = true;
-                }
-                
-                if (needsUpdate) {
-                    console.log("Saving initial or migrated data...");
-                    savePharmacyData(); 
-                } else {
+                    if (needsMigration) savePharmacyData(); // Save back migrated data
+                    
                     renderAll();
-                }
-            });
+                })
+                .subscribe(async (status) => {
+                    if (status === 'SUBSCRIBED') {
+                        // Now fetch initial data
+                        const { data, error } = await supabase
+                            .from('pharmacy_data')
+                            .select('tasks, employees')
+                            .eq('id', pharmacyId)
+                            .single();
+                        
+                        if (error || !data) {
+                            console.warn('No initial data found, creating...:', error);
+                            await createInitialPharmacyData(pharmacyId);
+                        } else {
+                            tasks = data.tasks || [];
+                            employees = data.employees || [];
+                            
+                            let needsMigration = false;
+                            tasks.forEach(task => {
+                                if (task.completedDates && Array.isArray(task.completedDates)) {
+                                    task.completedInstances = task.completedDates.map(dateStr => ({
+                                        date: dateStr,
+                                        time: task.estimatedTime
+                                    }));
+                                    delete task.completedDates;
+                                    needsMigration = true;
+                                }
+                                if (!task.completedInstances) {
+                                    task.completedInstances = [];
+                                }
+                            });
+                            if(employees.length === 0) {
+                                employees = [
+                                    { id: 1, name: 'Gerente' }, { id: 2, name: 'Adjunto Gt' }, { id: 3, name: 'Dinamizador Dermo' },
+                                    { id: 4, name: 'Equipo 1' }, { id: 5, name: 'Equipo 2' }, { id: 6, name: 'Equipo 3' },
+                                    { id: 7, name: 'Equipo 4' }, { id: 8, name: 'Equipo 5' }
+                                ];
+                                needsMigration = true;
+                            }
+                            
+                            if (needsMigration) {
+                                await savePharmacyData();
+                            } else {
+                                renderAll();
+                            }
+                        }
+                    }
+                });
         }
 
 
@@ -1720,27 +1813,15 @@
 
         // --- INICIALIZACIÓN Y EVENTOS ---
         async function init() {
-            // --- Configuración de Firebase ---
-            const firebaseConfig = {
-              apiKey: "AIzaSyBa5xLOwdAG8OUP8we0zMpUPtGOh0dlHpc",
-              authDomain: "organizador-ooff.firebaseapp.com",
-              projectId: "organizador-ooff",
-              storageBucket: "organizador-ooff.appspot.com",
-              messagingSenderId: "281892698487",
-              appId: "1:281892698487:web:afcee43fa18ecae0f90972",
-              measurementId: "G-GEL64PCPMP"
-            };
-            
-            const app = window.firebase.initializeApp(firebaseConfig);
-            db = window.firebase.getFirestore(app);
-            auth = window.firebase.getAuth(app);
+            // --- Configuración de Supabase ---
+            const SUPABASE_URL = "https://hytfejjqerogysuzobnp.supabase.co";
+            const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5dGZlampxZXJvZ3lzdXpvYm5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0NTQyNDAsImV4cCI6MjA3NzAzMDI0MH0.6j6U4k_O1wi_yI-V1XFHF21B-sTmDOZYD87m3Q-rgwM";
             
             try {
-                // Autenticación anónima
-                await window.firebase.signInAnonymously(auth);
+                supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             } catch (error) {
-                console.error("Error de autenticación en Firebase:", error);
-                loadingScreen.innerHTML = `<p class="text-red-500">Error de autenticación: ${error.message}</p>`;
+                console.error("Error connecting to Supabase:", error);
+                loadingScreen.innerHTML = `<p class="text-red-500">Error de conexión a la base de datos.</p>`;
                 return;
             }
             
@@ -1757,9 +1838,6 @@
                 showLoginScreen();
             }
             
-            googleClientIdInput.value = GOOGLE_CLIENT_ID; // Poner el ID prefijado
-            googleClientIdInput.disabled = true; // Deshabilitar el campo
-
             // Navegación Calendario
             document.getElementById('prev-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderAll(); });
             document.getElementById('next-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderAll(); });
@@ -1834,7 +1912,10 @@
             });
 
             logoutBtn.addEventListener('click', () => {
-                unsubscribePharmacyData(); // Dejar de escuchar cambios
+                if (pharmacyDataSubscription) {
+                    pharmacyDataSubscription.unsubscribe();
+                    pharmacyDataSubscription = null;
+                }
                 sessionStorage.removeItem('session_pharmacyId');
                 sessionStorage.removeItem('session_isAdmin');
                 currentPharmacyId = null;
@@ -2022,6 +2103,41 @@
             });
             
             // --- Eventos de Google Tasks ---
+            window.addEventListener('gapi-script-loaded', async () => {
+                gapi.load('client', async () => {
+                    await gapi.client.load(DISCOVERY_DOC);
+                    gapiInited = true;
+                    const googleToken = sessionStorage.getItem('google_access_token');
+                    if (googleToken && JSON.parse(googleToken).expires_in > Date.now()) {
+                        gapi.client.setToken(JSON.parse(googleToken));
+                        await loadGoogleTasksApi();
+                    }
+                });
+            });
+
+            window.addEventListener('gis-script-loaded', () => {
+                try {
+                    tokenClient = google.accounts.oauth2.initTokenClient({
+                        client_id: GOOGLE_CLIENT_ID,
+                        scope: SCOPES,
+                        callback: async (resp) => { // Callback para manejar la respuesta del login
+                             if (resp.error !== undefined) {
+                                console.error("Google Auth Error:", resp);
+                                showToast("Error de autenticación con Google.");
+                                return;
+                            }
+                            resp.expires_in = Date.now() + (resp.expires_in * 1000);
+                            sessionStorage.setItem('google_access_token', JSON.stringify(resp));
+                            await loadGoogleTasksApi();
+                        },
+                    });
+                    gisInited = true;
+                } catch(e) {
+                    console.error("Error initializing Google GIS Client", e);
+                    showToast("Error al inicializar Google. ¿ID de Cliente correcto?");
+                }
+            });
+
             connectGoogleBtn.addEventListener('click', () => {
                 if (!gisInited || !gapiInited) {
                     showToast("La API de Google aún está cargando. Inténtalo de nuevo en unos segundos.");
