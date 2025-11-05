@@ -1291,96 +1291,84 @@
 
         const renderEmployeeReport = () => {
              employeeReportEl.innerHTML = '';
-            employees.forEach(employee => {
-                let totalTime = 0;
-                let completedTime = 0;
-                let totalTaskCount = 0;
-                let completedTaskCount = 0;
-                
-                const month = currentDate.getMonth();
-                const year = currentDate.getFullYear();
-                const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            const month = currentDate.getMonth();
+            const year = currentDate.getFullYear();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+            employees.forEach(employee => {
+                let totalAssignedTime = 0;
+                let totalCompletedTime = 0;
+                let totalAssignedTaskCount = 0;
+                let totalCompletedTaskCount = 0;
+                
+                // 1. Calcular Tareas y Tiempo ASIGNADOS (Teórico)
                 tasks.filter(t => t.assignedTo === employee.id).forEach(task => {
                     if (task.type === 'flexible' && task.recurrence?.type === 'monthly') {
-                        totalTaskCount++;
-                        totalTime += task.estimatedTime || 0;
-                        const completedInstanceThisMonth = task.completedInstances?.find(inst => {
-                            const completedMonth = parseInt(inst.date.split('-')[1], 10) - 1;
-                            const completedYear = parseInt(inst.date.split('-')[0], 10);
-                            return completedMonth === month && completedYear === year;
-                        });
-
-                        if (completedInstanceThisMonth) {
-                             completedTaskCount++;
-                             completedTime += completedInstanceThisMonth.time || task.estimatedTime;
-                        }
-
+                        totalAssignedTaskCount++;
+                        totalAssignedTime += task.estimatedTime || 0;
                     } else if (task.type === 'recurrente' && task.recurrence) {
                         if (task.recurrence.type === 'weekly' && task.recurrence.days) {
                             for (let day = 1; day <= daysInMonth; day++) {
                                 const date = new Date(Date.UTC(year, month, day));
                                 if (task.recurrence.days.includes(String(date.getUTCDay()))) {
-                                    totalTaskCount++; // Count each instance
-                                    totalTime += task.estimatedTime;
-                                    const dateString = toISODateString(date);
-                                    const completedInstance = task.completedInstances?.find(inst => inst.date === dateString);
-                                    if (completedInstance) {
-                                        completedTaskCount++;
-                                        completedTime += completedInstance.time || task.estimatedTime;
-                                    }
+                                    totalAssignedTaskCount++; // Count each instance
+                                    totalAssignedTime += task.estimatedTime;
                                 }
                             }
                         } else if (task.recurrence.type === 'monthly' && task.recurrence.dayOfMonth) {
                             const dayOfMonth = parseInt(task.recurrence.dayOfMonth);
                             if (dayOfMonth > 0 && dayOfMonth <= daysInMonth) {
-                                totalTaskCount++; // Count this instance
-                                totalTime += task.estimatedTime;
-                                const date = new Date(Date.UTC(year, month, dayOfMonth));
-                                const dateString = toISODateString(date);
-                                const completedInstance = task.completedInstances?.find(inst => inst.date === dateString);
-                                if (completedInstance) {
-                                    completedTaskCount++;
-                                    completedTime += completedInstance.time || task.estimatedTime;
-                                }
+                                totalAssignedTaskCount++; // Count this instance
+                                totalAssignedTime += task.estimatedTime;
                             }
                         }
                     } else if ((task.type === 'flexible' || task.type === 'anual') && !task.recurrence) {
                         const monthStartStr = toISODateString(new Date(Date.UTC(year, month, 1)));
                         const monthEndStr = toISODateString(new Date(Date.UTC(year, month + 1, 0)));
-
                         if (task.startDate <= monthEndStr && task.dueDate >= monthStartStr) {
-                            totalTaskCount++; // This task counts as one
-                            totalTime += task.estimatedTime || 0;
-                            if (task.status === 'completada' && task.completionDate) {
-                                const completionMonth = parseInt(task.completionDate.split('-')[1], 10) - 1;
-                                const completionYear = parseInt(task.completionDate.split('-')[0], 10);
-                                if (completionMonth === month && completionYear === year) {
-                                    completedTaskCount++;
-                                    completedTime += task.estimatedTime || 0;
-                                }
-                            }
+                            totalAssignedTaskCount++; // This task counts as one
+                            totalAssignedTime += task.estimatedTime || 0;
                         }
                     } else { 
                          if (task.dueDate) {
                              const taskMonth = parseInt(task.dueDate.split('-')[1], 10) - 1;
                              const taskYear = parseInt(task.dueDate.split('-')[0], 10);
                              if(taskMonth === month && taskYear === year) {
-                                totalTaskCount++; // This task counts as one
-                                totalTime += task.estimatedTime || 0;
-                                if(task.status === 'completada'){
-                                    completedTaskCount++;
-                                    completedTime += task.estimatedTime || 0;
-                                }
+                                totalAssignedTaskCount++; // This task counts as one
+                                totalAssignedTime += task.estimatedTime || 0;
                              }
                          }
                     }
                 });
+
+                // 2. Calcular Tareas y Tiempo COMPLETADOS (Real)
+                tasks.forEach(task => {
+                    if (task.recurrence) {
+                        task.completedInstances?.forEach(inst => {
+                            const instMonth = parseInt(inst.date.split('-')[1], 10) - 1;
+                            const instYear = parseInt(inst.date.split('-')[0], 10);
+                            if (instMonth === month && instYear === year) {
+                                const completedBy = inst.completedBy || task.assignedTo;
+                                if (completedBy === employee.id) {
+                                    totalCompletedTaskCount++;
+                                    totalCompletedTime += inst.time || task.estimatedTime;
+                                }
+                            }
+                        });
+                    } else if (task.status === 'completada' && task.assignedTo === employee.id) {
+                         const completionMonth = parseInt(task.completionDate.split('-')[1], 10) - 1;
+                         const completionYear = parseInt(task.completionDate.split('-')[0], 10);
+                         if (completionMonth === month && completionYear === year) {
+                            totalCompletedTaskCount++;
+                            totalCompletedTime += task.estimatedTime || 0;
+                         }
+                    }
+                });
                 
-                const pendingTaskCount = totalTaskCount - completedTaskCount;
                 const plannedMinutes = (employee.plannedHours || 0) * 60;
-                const assignedPercentage = plannedMinutes > 0 ? ((totalTime / plannedMinutes) * 100).toFixed(1) : 0;
-                const completedPercentage = plannedMinutes > 0 ? ((completedTime / plannedMinutes) * 100).toFixed(1) : 0;
+                const assignedPercentage = plannedMinutes > 0 ? ((totalAssignedTime / plannedMinutes) * 100).toFixed(1) : 0;
+                const completedPercentage = plannedMinutes > 0 ? ((totalCompletedTime / plannedMinutes) * 100).toFixed(1) : 0;
 
 
                 employeeReportEl.innerHTML += `
@@ -1388,17 +1376,17 @@
                         <p class="font-semibold">${employee.name}</p>
                          <div class="grid grid-cols-2 gap-x-2 text-sm mt-1">
                             <div>
-                                <p class="text-gray-600">Pendientes:</p>
-                                <p class="font-bold text-orange-600">${pendingTaskCount}</p>
+                                <p class="text-gray-600">Asignadas:</p>
+                                <p class="font-bold text-blue-600">${totalAssignedTaskCount}</p>
                             </div>
                             <div>
                                 <p class="text-gray-600">Completadas:</p>
-                                <p class="font-bold text-green-600">${completedTaskCount}</p>
+                                <p class="font-bold text-green-600">${totalCompletedTaskCount}</p>
                             </div>
                         </div>
                         <div class="mt-2 pt-2 border-t">
-                             <p class="text-sm text-gray-600">Tiempo Asignado: <strong>${formatTime(totalTime)}</strong> / ${employee.plannedHours || 'N/A'}h</p>
-                             <p class="text-sm text-green-700">Tiempo Completado: <strong>${formatTime(completedTime)}</strong></p>
+                             <p class="text-sm text-gray-600">Tiempo Asignado: <strong>${formatTime(totalAssignedTime)}</strong> / ${employee.plannedHours || 'N/A'}h</p>
+                             <p class="text-sm text-green-700">Tiempo Completado: <strong>${formatTime(totalCompletedTime)}</strong></p>
                              <div class="grid grid-cols-2 gap-x-2 text-xs mt-2">
                                 <div>
                                     <p class="text-gray-600">% Teórico Asignado:</p>
@@ -1411,7 +1399,7 @@
                              </div>
                         </div>
                         <div class="w-full bg-gray-300 rounded-full h-2.5 mt-2">
-                            <div class="bg-green-500 h-2.5 rounded-full" style="width: ${totalTime > 0 ? (completedTime / totalTime) * 100 : 0}%"></div>
+                            <div class="bg-green-500 h-2.5 rounded-full" style="width: ${totalAssignedTime > 0 ? (totalCompletedTime / totalAssignedTime) * 100 : 0}%"></div>
                         </div>
                     </div>`;
             });
@@ -2253,6 +2241,12 @@
             } else {
                 showLoginScreen();
             }
+            
+            // Ocultar el campo de Client ID de Google ya que está prefijado
+            const googleClientIdContainer = document.getElementById('google-client-id');
+            if (googleClientIdContainer) {
+                 googleClientIdContainer.parentElement.style.display = 'none';
+            }
 
 
             // Navegación Calendario
@@ -2277,7 +2271,7 @@
             document.getElementById('addTaskBtn').addEventListener('click', () => openModal());
             printViewBtn.addEventListener('click', () => window.print());
             exportCsvBtn.addEventListener('click', handleExportCSV);
-            exportGlobalCsvBtn.addEventListener('click', handleExportGlobalCSV); // <-- AÑADIDO
+            exportGlobalCsvBtn.addEventListener('click', handleExportGlobalCSV);
             userManualBtn.addEventListener('click', () => {
                 const modal = document.getElementById('userManualModal');
                 modal.classList.remove('hidden');
