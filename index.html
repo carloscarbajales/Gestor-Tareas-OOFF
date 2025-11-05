@@ -149,7 +149,7 @@
             .text-white { color: black !important; }
         }
         .loader {
-            border: 4px solid #f3f3f3;
+            border: 4px solid #f3f3ff;
             border-top: 4px solid #3498db;
             border-radius: 50%;
             width: 40px;
@@ -299,6 +299,9 @@
             <div id="admin-controls" class="hidden protected-control">
                 <h2 class="text-lg font-semibold mb-3 border-b pb-2">Administración</h2>
                 <button id="manage-pharmacies-btn" class="w-full text-sm text-blue-600 hover:underline text-left">Gestionar Farmacias</button>
+                 <button id="export-global-csv-btn" class="w-full bg-red-600 text-white font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-red-700 transition-colors duration-300 mt-4">
+                    Exportar Informe Global (CSV)
+                </button>
            </div>
            
             <!-- Integración con Google Tasks -->
@@ -756,6 +759,7 @@
         // Admin
         const adminControls = document.getElementById('admin-controls');
         const managePharmaciesBtn = document.getElementById('manage-pharmacies-btn');
+        const exportGlobalCsvBtn = document.getElementById('export-global-csv-btn');
         const managePharmaciesModal = document.getElementById('managePharmaciesModal');
         const closeManagePharmaciesModalBtn = document.getElementById('close-manage-pharmacies-modal-btn');
         const addPharmacyForm = document.getElementById('add-pharmacy-form');
@@ -1243,7 +1247,7 @@
             employeeListEl.innerHTML = '';
             employees.forEach(emp => {
                 const empEl = document.createElement('div');
-                 const color = getEmployeeColor(emp.id);
+                 const color = getEmployeeColor(emp.id, employees); // Pasa la lista global
                 empEl.className = 'employee-item bg-gray-100 p-2 rounded-lg text-sm';
                 empEl.dataset.employeeId = emp.id;
                 empEl.innerHTML = `
@@ -1275,7 +1279,6 @@
                 employeeListEl.appendChild(empEl);
             });
 
-            const assignedToSelect = document.getElementById('task-assigned-to');
             filterEmployeeSelect.innerHTML = '<option value="all">Todos</option>';
             employees.forEach(emp => {
                 filterEmployeeSelect.innerHTML += `<option value="${emp.id}">${emp.name}</option>`;
@@ -1697,7 +1700,9 @@
             }
         };
         
-        const getEmployeeNameById = (id) => employees.find(e => e.id === id)?.name || 'Sin asignar';
+        const getEmployeeNameById = (id, employeeList = employees) => { // Refactorizado para aceptar una lista
+            return employeeList.find(e => e.id === id)?.name || 'Sin asignar';
+        };
 
         const openCompletedModal = () => {
             const modalContent = completedTasksModal.querySelector('div');
@@ -1951,7 +1956,7 @@
 
                 tasksForDay.forEach(task => {
                     const dateString = toISODateString(date);
-                    const employeeName = getEmployeeNameById(task.assignedTo);
+                    const employeeName = getEmployeeNameById(task.assignedTo, employees);
                     let status = "Pendiente";
                     let timeSpent = "";
                     let completedByName = employeeName; // Por defecto es el asignado
@@ -1961,7 +1966,7 @@
                         if(completedInstance) {
                             status = "Completada";
                             timeSpent = completedInstance.time;
-                            completedByName = getEmployeeNameById(completedInstance.completedBy); // Usar el real
+                            completedByName = getEmployeeNameById(completedInstance.completedBy, employees); // Usar el real
                         }
                     } else if (task.status === 'completada') {
                         status = "Completada";
@@ -2001,6 +2006,107 @@
                 link.click();
                 document.body.removeChild(link);
             }
+        };
+        
+        async function handleExportGlobalCSV() {
+            if (!isAdminSession) {
+                showToast("Esta función es solo para administradores.", "error");
+                return;
+            }
+            
+            showToast("Generando informe global... Esto puede tardar.", "success");
+            
+            const { data: allPharmaciesData, error: pharmaciesError } = await supabase
+                .from('pharmacies')
+                .select('id, name');
+                
+            const { data: allPharmacyData, error: dataError } = await supabase
+                .from('pharmacy_data')
+                .select('id, tasks, employees');
+
+            if (pharmaciesError || dataError) {
+                console.error("Error fetching global data:", pharmaciesError || dataError);
+                showToast("Error al obtener los datos globales.", "error");
+                return;
+            }
+            
+            const pharmacyNameMap = allPharmaciesData.reduce((acc, p) => (acc[p.id] = p.name, acc), {});
+            
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const monthName = currentDate.toLocaleString('es-ES', { month: 'long' }).toUpperCase();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            let csvRows = ["Farmacia,Tarea,Empleado Asignado,Realizado Por,Fecha,Tipo,Estado,Tiempo Estimado (min),Tiempo Realizado (min),Enlace Web"];
+
+            for (const pharmData of allPharmacyData) {
+                const pharmacyName = pharmacyNameMap[pharmData.id] || `ID ${pharmData.id}`;
+                const pharmTasks = pharmData.tasks || [];
+                const pharmEmployees = pharmData.employees || [];
+                
+                // Filtros (si se quieren aplicar globalmente)
+                const tasksToExport = pharmTasks.filter(task => (filters.employee === 'all' || task.assignedTo == filters.employee) && (filters.type === 'all' || task.type === filters.type));
+
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const date = new Date(Date.UTC(year, month, day));
+                    const tasksForDay = getTasksForDate(date, tasksToExport); // Usa la lista de tareas de esta farmacia
+
+                    tasksForDay.forEach(task => {
+                        const dateString = toISODateString(date);
+                        const employeeName = getEmployeeNameById(task.assignedTo, pharmEmployees); // Usa la lista de empleados de esta farmacia
+                        let status = "Pendiente";
+                        let timeSpent = "";
+                        let completedByName = employeeName;
+
+                        if (task.recurrence) {
+                            const completedInstance = task.completedInstances?.find(inst => inst.date === dateString);
+                            if(completedInstance) {
+                                status = "Completada";
+                                timeSpent = completedInstance.time;
+                                completedByName = getEmployeeNameById(completedInstance.completedBy, pharmEmployees);
+                            }
+                        } else if (task.status === 'completada') {
+                            status = "Completada";
+                            timeSpent = task.estimatedTime;
+                            completedByName = employeeName;
+                        }
+                        
+                        const cleanPharmacy = `"${(pharmacyName || '').replace(/"/g, '""')}"`;
+                        const cleanTitle = `"${(task.title || '').replace(/"/g, '""')}"`;
+                        const cleanEmployee = `"${(employeeName || '').replace(/"/g, '""')}"`;
+                        const cleanCompletedBy = `"${(completedByName || '').replace(/"/g, '""')}"`;
+                        const cleanUrl = `"${(task.url || '').replace(/"/g, '""')}"`;
+
+                        const row = [
+                            cleanPharmacy,
+                            cleanTitle,
+                            cleanEmployee,
+                            cleanCompletedBy,
+                            date.toLocaleDateString('es-ES', { timeZone: 'UTC' }),
+                            task.type,
+                            status,
+                            task.estimatedTime || 0,
+                            timeSpent,
+                            cleanUrl
+                        ].join(",");
+                        csvRows.push(row);
+                    });
+                }
+            }
+
+            const csvContent = csvRows.join("\r\n");
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", `informe_GLOBAL_${monthName}_${year}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+             showToast("Informe global generado con éxito.", "success");
         };
         
         // --- GOOGLE TASKS API ---
@@ -2082,7 +2188,7 @@
 
                 for (const task of tasksForDay) {
                     taskCount++;
-                    const employeeName = getEmployeeNameById(task.assignedTo);
+                    const employeeName = getEmployeeNameById(task.assignedTo, employees);
                     const title = `[${pharmacyName}] ${task.title} - (${employeeName})`;
                     const notes = `Tipo: ${task.type}\nEstimado: ${task.estimatedTime} min\nEnlace: ${task.url || 'N/A'}`;
                     
@@ -2146,14 +2252,6 @@
                 showAppScreen();
             } else {
                 showLoginScreen();
-            }
-            
-            // Ocultar el campo de Client ID de Google ya que está prefijado
-            const googleClientIdContainer = document.getElementById('google-client-id');
-            if (googleClientIdContainer) {
-                 googleClientIdContainer.style.display = 'none';
-                 const label = document.querySelector('label[for="google-client-id"]');
-                 if (label) label.style.display = 'none';
             }
 
 
@@ -2425,14 +2523,10 @@
                         if (dateIndex > -1) { // Si la tarea está completada, actualizar su tiempo y quién la hizo
                             task.completedInstances[dateIndex].time = actualTime;
                             task.completedInstances[dateIndex].completedBy = completedBy;
-                        } else {
-                            // Si no está marcada como completada, el empleado no puede "guardar" cambios
-                            // solo puede "marcar como completada" (ver 'toggle-status-btn')
-                            // O reasignar... pero reasignar para una instancia es 'completedBy'
-                             showToast("Usa 'Marcar Completada' para guardar tus cambios en tareas recurrentes.", "error");
-                             closeModal(taskModal);
-                             return;
                         }
+                        // Si no está completada, el botón "toggle" se encarga de añadirla.
+                        // El empleado también puede reasignar el "realizado por" y guardar.
+                        
                     } else {
                         // Para tareas NO recurrentes, el empleado SÍ puede reasignar
                         task.assignedTo = parseInt(document.getElementById('task-assigned-to').value) || null;
