@@ -43,13 +43,60 @@
             from { transform: translateY(0); opacity: 1; }
             to { transform: translateY(100%); opacity: 0; }
         }
-        .app-locked .protected-control, .app-locked .calendar-grid > div, .app-locked #employee-list button {
+
+        /* --- Lógica de Bloqueo y Roles --- */
+        
+        /* Controles protegidos y lista de empleados bloqueados (siempre para 'app-locked') */
+        body.app-locked .protected-control, body.app-locked #employee-list button {
             pointer-events: none;
             opacity: 0.7;
         }
-        .app-locked .protected-control {
+        body.app-locked .protected-control {
              cursor: not-allowed;
         }
+        
+        /* Días del calendario bloqueados SÓLO si es admin/manager y está bloqueado (NO empleado) */
+        body.app-locked:not(.role-employee) .calendar-grid > div {
+             pointer-events: none;
+            opacity: 0.7;
+        }
+        
+        /* Reglas específicas para rol de empleado */
+        body.role-employee .protected-control {
+            display: none; /* Oculta botones de gestión */
+        }
+        body.role-employee #lock-btn {
+            display: none; /* Oculta el candado */
+        }
+
+        /* Campos del modal bloqueados */
+        body.app-locked .task-modal-field {
+            pointer-events: none;
+            opacity: 0.7;
+            background-color: #f3f4f6;
+        }
+        /* Campos del modal editables para empleados */
+        body.app-locked.role-employee .task-modal-editable {
+            pointer-events: auto !important;
+            opacity: 1 !important;
+            background-color: #ffffff !important;
+        }
+        
+        /* Ocultar botón Guardar SÓLO si es admin/manager y está bloqueado */
+         body.app-locked:not(.role-employee) #task-form button[type="submit"] {
+            display: none;
+        }
+        /* Ocultar botón Guardar si es empleado Y está en modo crear tarea (no puede crear) */
+        body.role-employee.modal-create #task-form button[type="submit"] {
+            display: none;
+        }
+
+        /* El empleado no puede borrar */
+         body.role-employee #delete-task-btn {
+            display: none !important;
+         }
+
+
         @media print {
             body {
                 -webkit-print-color-adjust: exact;
@@ -307,13 +354,13 @@
                 
                 <div class="mb-4">
                     <label for="task-title" class="block text-sm font-medium text-gray-700 mb-1">Título</label>
-                    <input type="text" id="task-title" class="w-full border-gray-300 rounded-lg shadow-sm" required>
+                    <input type="text" id="task-title" class="w-full border-gray-300 rounded-lg shadow-sm task-modal-field" required>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                         <label for="task-type" class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                        <select id="task-type" class="w-full border-gray-300 rounded-lg shadow-sm" required>
+                        <select id="task-type" class="w-full border-gray-300 rounded-lg shadow-sm task-modal-field" required>
                             <option value="puntual">Puntual</option>
                             <option value="inaplazable">Inaplazable</option>
                             <option value="flexible">Flexible</option>
@@ -324,7 +371,7 @@
                     <div id="recurrence-container" class="hidden">
                          <div class="mb-2">
                             <label for="task-recurrence-type" class="block text-sm font-medium text-gray-700 mb-1">Frecuencia</label>
-                            <select id="task-recurrence-type" class="w-full border-gray-300 rounded-lg shadow-sm">
+                            <select id="task-recurrence-type" class="w-full border-gray-300 rounded-lg shadow-sm task-modal-field">
                                 <option value="weekly">Semanal</option>
                                 <option value="monthly">Mensual</option>
                             </select>
@@ -332,7 +379,7 @@
                         <div id="recurrence-weekly-container">
                              <fieldset>
                                 <legend class="block text-sm font-medium text-gray-700 mb-2">Repetir los días</legend>
-                                <div id="task-recurrence-days" class="grid grid-cols-3 sm:grid-cols-4 gap-2 text-sm">
+                                <div id="task-recurrence-days" class="grid grid-cols-3 sm:grid-cols-4 gap-2 text-sm task-modal-field">
                                     <label class="flex items-center space-x-2 p-2 border rounded-md"><input type="checkbox" value="1"><span>Lun</span></label>
                                     <label class="flex items-center space-x-2 p-2 border rounded-md"><input type="checkbox" value="2"><span>Mar</span></label>
                                     <label class="flex items-center space-x-2 p-2 border rounded-md"><input type="checkbox" value="3"><span>Mié</span></label>
@@ -345,7 +392,7 @@
                         </div>
                         <div id="recurrence-monthly-container" class="hidden">
                             <label for="task-recurrence-day-month" class="block text-sm font-medium text-gray-700 mb-1">Día del mes</label>
-                            <input type="number" id="task-recurrence-day-month" min="1" max="31" class="w-full border-gray-300 rounded-lg shadow-sm" placeholder="Ej: 15">
+                            <input type="number" id="task-recurrence-day-month" min="1" max="31" class="w-full border-gray-300 rounded-lg shadow-sm task-modal-field" placeholder="Ej: 15">
                         </div>
                     </div>
                 </div>
@@ -353,32 +400,40 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" id="dates-container">
                     <div id="start-date-container">
                         <label for="task-start-date" class="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio</label>
-                        <input type="date" id="task-start-date" class="w-full border-gray-300 rounded-lg shadow-sm">
+                        <input type="date" id="task-start-date" class="w-full border-gray-300 rounded-lg shadow-sm task-modal-field">
                     </div>
                     <div id="due-date-container">
                         <label for="task-due-date" class="block text-sm font-medium text-gray-700 mb-1">Fecha Fin</label>
-                        <input type="date" id="task-due-date" class="w-full border-gray-300 rounded-lg shadow-sm">
+                        <input type="date" id="task-due-date" class="w-full border-gray-300 rounded-lg shadow-sm task-modal-field">
                     </div>
                 </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                        <label for="task-assigned-to" class="block text-sm font-medium">Asignar a</label>
-                        <select id="task-assigned-to" class="w-full border-gray-300 rounded-lg shadow-sm"> </select>
+                        <label id="task-assigned-to-label" for="task-assigned-to" class="block text-sm font-medium">Asignar a</label>
+                        <select id="task-assigned-to" class="w-full border-gray-300 rounded-lg shadow-sm task-modal-editable"> </select>
                     </div>
                      <div>
                         <label for="task-time" class="block text-sm font-medium">Tiempo Estimado (min)</label>
-                        <input type="number" id="task-time" min="0" step="5" class="w-full border-gray-300 rounded-lg shadow-sm" required>
+                        <input type="number" id="task-time" min="0" step="5" class="w-full border-gray-300 rounded-lg shadow-sm task-modal-field" required>
                     </div>
                 </div>
-                <div id="actual-time-container" class="hidden mb-4">
-                    <label for="task-actual-time" class="block text-sm font-medium">Tiempo Realizado (min)</label>
-                    <input type="number" id="task-actual-time" min="0" step="5" class="w-full border-gray-300 rounded-lg shadow-sm">
+                
+                <!-- Campos específicos para Tareas Recurrentes (editables por empleado) -->
+                <div id="recurrent-instance-details" class="hidden space-y-4 mb-4">
+                    <div id="completed-by-container">
+                        <label for="task-completed-by" class="block text-sm font-medium">Realizado por</label>
+                        <select id="task-completed-by" class="w-full border-gray-300 rounded-lg shadow-sm task-modal-editable"></select>
+                    </div>
+                    <div id="actual-time-container">
+                        <label for="task-actual-time" class="block text-sm font-medium">Tiempo Realizado (min)</label>
+                        <input type="number" id="task-actual-time" min="0" step="5" class="w-full border-gray-300 rounded-lg shadow-sm task-modal-editable">
+                    </div>
                 </div>
                 
                 <div class="mb-4">
                     <label for="task-url" class="block text-sm font-medium text-gray-700 mb-1">Enlace Web (Opcional)</label>
-                    <input type="url" id="task-url" placeholder="https://ejemplo.com" class="w-full border-gray-300 rounded-lg shadow-sm">
+                    <input type="url" id="task-url" placeholder="https://ejemplo.com" class="w-full border-gray-300 rounded-lg shadow-sm task-modal-field">
                 </div>
 
                 <div class="flex justify-between items-center mt-8">
@@ -386,7 +441,7 @@
                         <button type="button" id="delete-task-btn" class="hidden text-red-600 hover:text-red-800 font-medium">Eliminar</button>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <button type="button" id="toggle-status-btn" class="hidden px-4 py-2 bg-green-100 text-green-800 rounded-lg hover:bg-green-200 font-medium"></button>
+                        <button type="button" id="toggle-status-btn" class="hidden px-4 py-2 bg-green-100 text-green-800 rounded-lg hover:bg-green-200 font-medium task-modal-editable">Marcar Completada</button>
                         <button type="button" id="cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancelar</button>
                         <button type="submit" class="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">Guardar</button>
                     </div>
@@ -437,11 +492,24 @@
                 </div>
                 <div class="mb-4">
                     <label for="new-password" class="block text-sm font-medium text-gray-700 mb-1">Nueva Contraseña</label>
-                    <input type="password" id="new-password" class="w-full border-gray-300 rounded-lg shadow-sm" required>
+                    <input type="password" id="new-password" class="w-full border-gray-300 rounded-lg shadow-sm">
                 </div>
                  <div class="mb-4 hidden" id="admin-reset-container">
-                    <label for="admin-reset-pharmacy-select" class="block text-sm font-medium text-gray-700 mb-1">Resetear contraseña de Gerente para:</label>
-                    <select id="admin-reset-pharmacy-select" class="w-full border-gray-300 rounded-lg shadow-sm"></select>
+                    <label for="admin-reset-pharmacy-select" class="block text-sm font-medium text-gray-700 mb-1">Gestionar Farmacia:</label>
+                    <select id="admin-reset-pharmacy-select" class="w-full border-gray-300 rounded-lg shadow-sm mb-2">
+                        <option value="">-- Seleccionar Farmacia --</option>
+                        <!-- Opciones se llenarán dinámicamente -->
+                    </select>
+                    <div id="admin-pharmacy-passwords" class="hidden space-y-2">
+                        <label for="admin-reset-manager-pass" class="block text-sm font-medium text-gray-700">Nueva Contraseña de Gerente</label>
+                        <input type="password" id="admin-reset-manager-pass" class="w-full border-gray-300 rounded-lg shadow-sm">
+                        <label for="admin-reset-employee-pass" class="block text-sm font-medium text-gray-700">Nueva Contraseña de Empleado</label>
+                        <input type="password" id="admin-reset-employee-pass" class="w-full border-gray-300 rounded-lg shadow-sm">
+                    </div>
+                </div>
+                <div class="mb-4 hidden" id="manager-employee-container">
+                    <label for="manager-set-employee-pass" class="block text-sm font-medium text-gray-700 mb-1">Nueva Contraseña de Empleado (para tu farmacia)</label>
+                    <input type="password" id="manager-set-employee-pass" class="w-full border-gray-300 rounded-lg shadow-sm">
                 </div>
                 <p id="change-password-error" class="text-red-500 text-sm mt-2 h-4"></p>
                 <div class="flex items-center space-x-4 mt-6">
@@ -490,8 +558,9 @@
                         <li><strong>Seleccionar Farmacia:</strong> Elige tu farmacia de la lista desplegable.</li>
                         <li><strong>Contraseña:</strong>
                             <ul class="list-circle list-inside ml-4">
-                                <li><strong>Gerente:</strong> Introduce la contraseña específica de tu farmacia. Si es la primera vez que accedes, la primera contraseña que uses se guardará como la contraseña del gerente para esa farmacia.</li>
-                                <li><strong>Administrador:</strong> Para acceder a cualquier farmacia con permisos de supervisor, introduce la contraseña de administrador.</li>
+                                <li><strong>Administrador:</strong> Contraseña global para gestionar farmacias.</li>
+                                <li><strong>Gerente:</strong> Contraseña para gestionar una farmacia específica (crear tareas, empleados, etc.).</li>
+                                <li><strong>Empleado:</strong> Contraseña de solo-lectura para una farmacia. Permite ver tareas, marcarlas como completadas y ajustar tiempos.</li>
                             </ul>
                         </li>
                     </ul>
@@ -508,8 +577,9 @@
                 <div>
                     <h3 class="text-lg font-bold mb-2" style="color: #25af0f;">3. Gestión de Tareas</h3>
                     <ul class="list-disc list-inside space-y-1">
-                        <li><strong>Crear Tarea:</strong> Haz clic en el botón "Añadir Nueva Tarea" o en un día vacío del calendario.</li>
-                        <li><strong>Editar Tarea:</strong> Haz clic sobre una tarea existente en el calendario.</li>
+                        <li><strong>Crear Tarea (Admin/Gerente):</strong> Haz clic en el botón "Añadir Nueva Tarea" o en un día vacío del calendario.</li>
+                        <li><strong>Editar Tarea (Admin/Gerente):</strong> Haz clic sobre una tarea existente en el calendario.</li>
+                         <li><strong>Actualizar Tarea (Empleado):</strong> Haz clic en una tarea. Solo podrás cambiar el estado (pendiente/completada), el empleado asignado y el tiempo realizado.</li>
                         <li><strong>Tipos de Tareas:</strong>
                             <ul class="list-circle list-inside ml-4">
                                 <li><strong>Puntual/Inaplazable/Anual:</strong> Tareas con una fecha de inicio y/o fin específica.</li>
@@ -526,7 +596,7 @@
                     </ul>
                 </div>
                  <div>
-                    <h3 class="text-lg font-bold mb-2" style="color: #25af0f;">4. Gestión de Empleados</h3>
+                    <h3 class="text-lg font-bold mb-2" style="color: #25af0f;">4. Gestión de Empleados (Admin/Gerente)</h3>
                      <ul class="list-disc list-inside space-y-1">
                         <li><strong>Añadir/Eliminar:</strong> Introduce un nombre y haz clic en "Añadir" para crear un nuevo empleado. Haz clic en la 'X' roja para eliminarlo.</li>
                         <li><strong>Horas y Vacaciones:</strong> Puedes especificar las horas de trabajo planificadas para el mes y un rango de fechas para las vacaciones.</li>
@@ -544,13 +614,13 @@
                     </ul>
                 </div>
                  <div>
-                    <h3 class="text-lg font-bold mb-2" style="color: #25af0f;">6. Seguridad</h3>
+                    <h3 class="text-lg font-bold mb-2" style="color: #25af0f;">6. Seguridad (Admin/Gerente)</h3>
                     <ul class="list-disc list-inside space-y-1">
-                        <li><strong>Bloquear/Desbloquear:</strong> El icono del candado (🔒) en la parte superior te permite bloquear la aplicación para evitar modificaciones accidentales. Para desbloquear, introduce tu contraseña de gerente o administrador.</li>
+                        <li><strong>Bloquear/Desbloquear:</strong> El icono del candado (🔒) en la parte superior te permite bloquear la aplicación para evitar modificaciones accidentales. Para desbloquear, introduce tu contraseña.</li>
                         <li><strong>Cambiar Contraseña:</strong>
                             <ul class="list-circle list-inside ml-4">
-                                <li><strong>Gerente:</strong> Haz clic en "Cambiar Contraseña" para modificar la contraseña de tu farmacia.</li>
-                                <li><strong>Administrador:</strong> Puedes cambiar tu propia contraseña o resetear la contraseña de cualquier gerente seleccionando la farmacia en el desplegable.</li>
+                                <li><strong>Gerente:</strong> Haz clic en "Cambiar Contraseña" para modificar la contraseña de tu farmacia y establecer/cambiar la contraseña de empleado de tu farmacia.</li>
+                                <li><strong>Administrador:</strong> Puedes cambiar tu propia contraseña o resetear la contraseña de cualquier gerente o empleado seleccionando la farmacia en el desplegable.</li>
                             </ul>
                         </li>
                     </ul>
@@ -605,6 +675,7 @@
         let tasks = [];
         let employees = [];
         let isLocked = true;
+        let userRole = 'employee'; // 'admin', 'manager', 'employee'
         
         // --- ESTADO GLOBAL DE LA APP ---
         let currentPharmacyId = null;
@@ -732,13 +803,37 @@
 
             const { data: passwordsData, error: passwordsError } = await supabase
                 .from('passwords')
-                .select('key, hash');
+                .select('key, hash, role'); // Incluir 'role'
 
             if (passwordsError) {
                 console.error('Error fetching passwords:', passwordsError);
+                // Si la columna 'role' no existe, intentamos sin ella
+                if (passwordsError.code === '42703') { // '42703' es 'undefined_column' en PostgreSQL
+                     console.warn("Columna 'role' no encontrada. Asumiendo estructura antigua.");
+                     const { data: oldPasswordsData, error: oldPasswordsError } = await supabase
+                        .from('passwords')
+                        .select('key, hash');
+                    
+                    if (oldPasswordsError) {
+                         console.error('Error fetching passwords (fallback):', oldPasswordsError);
+                         return;
+                    }
+                    
+                    allPasswords = oldPasswordsData.reduce((acc, curr) => {
+                        let role = 'manager'; // default
+                        if (curr.key === 'admin') {
+                            role = 'admin';
+                        } else if (curr.key.startsWith('employee_')) {
+                            role = 'employee';
+                        }
+                        acc[curr.key] = { hash: curr.hash, role: role };
+                        return acc;
+                    }, {});
+                    
+                }
             } else if (passwordsData && passwordsData.length > 0) {
                 allPasswords = passwordsData.reduce((acc, curr) => {
-                    acc[curr.key] = curr.hash;
+                    acc[curr.key] = { hash: curr.hash, role: curr.role || 'manager' }; // Asignar 'manager' por defecto si el rol no existe
                     return acc;
                 }, {});
             } else {
@@ -759,12 +854,28 @@
         }
         
         async function savePasswords() {
+            // Guardamos con la nueva estructura de roles
             const passwordsArray = Object.keys(allPasswords).map(key => ({
                 key: key,
-                hash: allPasswords[key]
+                hash: allPasswords[key].hash,
+                role: allPasswords[key].role
             }));
-            const { error } = await supabase.from('passwords').upsert(passwordsArray);
-            if (error) console.error('Error saving passwords:', error);
+            
+            // Usar 'upsert' para insertar o actualizar
+            const { error } = await supabase.from('passwords').upsert(passwordsArray, { onConflict: 'key' });
+            if (error) {
+                console.error('Error saving passwords:', error);
+                // Fallback si la columna 'role' no existe
+                if (error.code === '42703') {
+                    console.warn("Fallo al guardar 'role', intentando de nuevo sin él.");
+                    const oldPasswordsArray = Object.keys(allPasswords).map(key => ({
+                        key: key,
+                        hash: allPasswords[key].hash
+                    }));
+                    const { error: fallbackError } = await supabase.from('passwords').upsert(oldPasswordsArray, { onConflict: 'key' });
+                    if (fallbackError) console.error('Error saving passwords (fallback):', fallbackError);
+                }
+            }
         }
 
         async function savePharmacyData() {
@@ -930,17 +1041,24 @@
                 tasksForDay.forEach(task => {
                     const taskEl = document.createElement('div');
                     taskEl.dataset.type = task.type;
-                    const employeeColor = getEmployeeColor(task.assignedTo);
-                    const typeBorderColor = taskTypeBorders[task.type] || 'border-gray-400';
                     
+                    let employeeColor;
                     let isCompletedToday = false;
+                    
                     if (task.recurrence) {
-                        isCompletedToday = task.completedInstances?.some(inst => inst.date === dateString);
-                    } else if (task.type === 'flexible') {
-                        isCompletedToday = task.status === 'completada';
+                        const completedInstance = task.completedInstances?.find(inst => inst.date === dateString);
+                        if (completedInstance) {
+                            isCompletedToday = true;
+                            employeeColor = getEmployeeColor(completedInstance.completedBy);
+                        } else {
+                            employeeColor = getEmployeeColor(task.assignedTo);
+                        }
                     } else {
                         isCompletedToday = task.status === 'completada';
+                        employeeColor = getEmployeeColor(task.assignedTo);
                     }
+                    
+                    const typeBorderColor = taskTypeBorders[task.type] || 'border-gray-400';
 
                     taskEl.className = `taskEl text-xs p-1.5 rounded-md border-l-4 font-medium ${employeeColor.bg} ${employeeColor.text} ${typeBorderColor} flex justify-between items-center`;
 
@@ -1300,10 +1418,14 @@
             const lockedIcon = `<svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>`;
             const unlockedIcon = `<svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>`;
             lockBtn.innerHTML = isLocked ? lockedIcon : unlockedIcon;
-            if (isLocked) {
-                appContainer.classList.add('app-locked');
-            } else {
-                appContainer.classList.remove('app-locked');
+            
+            document.body.classList.remove('app-locked', 'role-employee', 'modal-create'); // Limpiar clases
+
+            if (userRole === 'employee') {
+                 document.body.classList.add('app-locked'); // Para los campos del modal
+                 document.body.classList.add('role-employee'); // Para ocultar botones
+            } else if (isLocked) { // Admin o Manager que han bloqueado
+                document.body.classList.add('app-locked');
             }
         };
         
@@ -1359,16 +1481,41 @@
 
         // --- MODALES ---
         const openModal = (task = null, dateString = null) => {
-            if(isLocked) { promptForPassword(); return; }
+            // Un empleado no puede crear tareas nuevas
+            if (!task && userRole === 'employee') {
+                showToast("No tienes permiso para crear tareas.", "error");
+                return;
+            }
+            // Admin/Manager bloqueado no puede abrir el modal
+            if (isLocked && userRole !== 'employee') { 
+                promptForPassword(); 
+                return; 
+            }
+            
             const modalContent = taskModal.querySelector('div');
+            
+            // Añadir clase para modo creación
+            if (!task) {
+                document.body.classList.add('modal-create');
+            } else {
+                document.body.classList.remove('modal-create');
+            }
+
             taskForm.reset();
             document.querySelectorAll('#task-recurrence-days input').forEach(cb => cb.checked = false);
             ['task-id', 'task-status', 'task-instance-date'].forEach(id => document.getElementById(id).value = '');
             if(dateString) document.getElementById('task-instance-date').value = dateString;
             
             const actualTimeContainer = document.getElementById('actual-time-container');
-            const actualTimeInput = document.getElementById('task-actual-time');
-            actualTimeContainer.classList.add('hidden'); 
+            const completedByContainer = document.getElementById('completed-by-container');
+            const recurrentInstanceDetails = document.getElementById('recurrent-instance-details');
+            const assignedToSelect = document.getElementById('task-assigned-to');
+            const assignedToLabel = document.getElementById('task-assigned-to-label');
+
+            recurrentInstanceDetails.classList.add('hidden');
+            actualTimeContainer.classList.add('hidden'); // Ocultar por si acaso
+            completedByContainer.style.display = 'none'; // Ocultar por si acaso
+
 
             let taskStartDate = dateString;
             let taskEndDate = dateString;
@@ -1385,8 +1532,8 @@
                     taskEndDate = document.getElementById('task-due-date').value || dateString;
                  }
             }
-            populateAvailableEmployees(taskStartDate, taskEndDate);
-
+            populateAvailableEmployees(taskStartDate, taskEndDate); // Popular ambos desplegables
+            
             if (task) { // Editar
                 document.getElementById('task-type').value = task.type;
                  if (task.recurrence) {
@@ -1403,10 +1550,22 @@
                 document.getElementById('task-time').value = task.estimatedTime || '';
                 document.getElementById('task-url').value = task.url || '';
                 
+                const completedBySelect = document.getElementById('task-completed-by');
+                
                 if (task.recurrence) {
+                    recurrentInstanceDetails.classList.remove('hidden');
                     actualTimeContainer.classList.remove('hidden');
+                    completedByContainer.style.display = 'block';
+
+                    assignedToLabel.textContent = "Asignado a (por defecto)";
+                    assignedToSelect.classList.add('task-modal-field'); // Bloquear siempre para recurrentes
+                    assignedToSelect.classList.remove('task-modal-editable');
+
                     const completedInstance = task.completedInstances?.find(inst => inst.date === dateString);
-                    actualTimeInput.value = completedInstance ? completedInstance.time : task.estimatedTime;
+                    
+                    document.getElementById('task-actual-time').value = completedInstance ? completedInstance.time : task.estimatedTime;
+                    completedBySelect.value = completedInstance ? completedInstance.completedBy : task.assignedTo;
+
                      if (task.recurrence.type === 'monthly' && task.type === 'recurrente') {
                         document.getElementById('task-recurrence-day-month').value = task.recurrence.dayOfMonth;
                     } else if (task.recurrence.type === 'weekly' && task.recurrence.days) {
@@ -1415,6 +1574,11 @@
                             if (cb) cb.checked = true;
                         });
                     }
+                } else {
+                    // Tarea NO recurrente
+                    assignedToLabel.textContent = "Asignar a";
+                    assignedToSelect.classList.add('task-modal-editable');
+                    assignedToSelect.classList.remove('task-modal-field');
                 }
                 
                 document.getElementById('delete-task-btn').classList.remove('hidden');
@@ -1431,7 +1595,7 @@
                 }
 
                 toggleBtn.textContent = isCompletedToday ? 'Marcar Pendiente' : 'Marcar Completada';
-                toggleBtn.className = `px-4 py-2 rounded-lg font-medium ${isCompletedToday ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : 'bg-green-100 text-green-800 hover:bg-green-200'}`;
+                toggleBtn.className = `px-4 py-2 rounded-lg font-medium task-modal-editable ${isCompletedToday ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : 'bg-green-100 text-green-800 hover:bg-green-200'}`;
 
             } else { // Crear
                 document.getElementById('modal-title').textContent = 'Nueva Tarea';
@@ -1443,7 +1607,13 @@
                 }
                 document.getElementById('delete-task-btn').classList.add('hidden');
                 document.getElementById('toggle-status-btn').classList.add('hidden');
+                
+                assignedToLabel.textContent = "Asignar a";
+                assignedToSelect.classList.add('task-modal-editable');
+                assignedToSelect.classList.remove('task-modal-field');
             }
+            
+            updateLockUI(); // Aplicar bloqueo de campos al abrir modal
 
             taskModal.classList.remove('hidden');
             taskModal.classList.add('flex');
@@ -1452,22 +1622,33 @@
         
         const populateAvailableEmployees = (taskStart, taskEnd) => {
             const assignedToSelect = document.getElementById('task-assigned-to');
+            const completedBySelect = document.getElementById('task-completed-by');
+            
             assignedToSelect.innerHTML = '<option value="">Sin asignar</option>';
+            completedBySelect.innerHTML = '<option value="">Sin asignar</option>';
+            
             const availableEmployees = employees.filter(emp => {
                 if (!emp.vacationStart || !emp.vacationEnd) return true; // Available if no vacation set
                 // No overlap if task ends before vacation starts OR task starts after vacation ends
                 const isNotOnVacation = (taskEnd < emp.vacationStart) || (taskStart > emp.vacationEnd);
                 return isNotOnVacation;
             });
+            
             availableEmployees.forEach(emp => {
-                assignedToSelect.innerHTML += `<option value="${emp.id}">${emp.name}</option>`;
+                const option = `<option value="${emp.id}">${emp.name}</option>`;
+                assignedToSelect.innerHTML += option;
+                completedBySelect.innerHTML += option;
             });
         };
 
         const closeModal = (modalEl) => {
             const modalContent = modalEl.querySelector('div');
             modalContent.classList.add('scale-95', 'opacity-0');
-            setTimeout(() => { modalEl.classList.add('hidden'); modalEl.classList.remove('flex'); }, 200);
+            setTimeout(() => { 
+                modalEl.classList.add('hidden'); 
+                modalEl.classList.remove('flex');
+                document.body.classList.remove('modal-create'); // Limpiar clase al cerrar
+            }, 200);
         };
 
         const updateModalUI = () => {
@@ -1534,7 +1715,7 @@
                     task.completedInstances.forEach(instance => {
                         allCompletedInstances.push({
                             title: task.title,
-                            assignedTo: getEmployeeNameById(task.assignedTo),
+                            assignedTo: getEmployeeNameById(instance.completedBy || task.assignedTo), // Usar completedBy si existe
                             completionDate: new Date(instance.date),
                             timeSpent: instance.time
                         });
@@ -1592,25 +1773,31 @@
         };
 
         const openChangePasswordModal = () => {
-            if (isLocked) { promptForPassword(); return; }
+            if (isLocked && userRole !== 'employee') { promptForPassword(); return; }
+            if (userRole === 'employee') return; // Los empleados no pueden cambiar contraseñas
+
             const modalContent = changePasswordModal.querySelector('div');
             const title = document.getElementById('change-password-title');
             const adminResetContainer = document.getElementById('admin-reset-container');
             const adminResetSelect = document.getElementById('admin-reset-pharmacy-select');
+            const managerEmployeeContainer = document.getElementById('manager-employee-container');
             
             changePasswordForm.reset();
             document.getElementById('change-password-error').textContent = '';
+            document.getElementById('admin-pharmacy-passwords').classList.add('hidden'); // Ocultarlo al abrir
 
             if(isAdminSession) {
                 title.textContent = 'Gestión de Contraseñas (Admin)';
                 adminResetContainer.classList.remove('hidden');
+                managerEmployeeContainer.classList.add('hidden'); // Ocultar el de gerente
                 adminResetSelect.innerHTML = `<option value="">-- Cambiar mi contraseña de Admin --</option>`;
                 allPharmacies.forEach(p => {
                     adminResetSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
                 });
-            } else {
+            } else { // Es Gerente
                 title.textContent = 'Cambiar Contraseña de Gerente';
                 adminResetContainer.classList.add('hidden');
+                managerEmployeeContainer.classList.remove('hidden'); // Mostrar el de gerente
             }
 
             changePasswordModal.classList.remove('hidden');
@@ -1754,7 +1941,7 @@
             const monthName = currentDate.toLocaleString('es-ES', { month: 'long' }).toUpperCase();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-            let csvRows = ["Tarea,Empleado,Fecha,Tipo,Estado,Tiempo Estimado (min),Tiempo Realizado (min),Enlace Web"];
+            let csvRows = ["Tarea,Empleado Asignado,Realizado Por,Fecha,Tipo,Estado,Tiempo Estimado (min),Tiempo Realizado (min),Enlace Web"];
             
             const tasksToExport = tasks.filter(task => (filters.employee === 'all' || task.assignedTo == filters.employee) && (filters.type === 'all' || task.type === filters.type));
 
@@ -1767,25 +1954,30 @@
                     const employeeName = getEmployeeNameById(task.assignedTo);
                     let status = "Pendiente";
                     let timeSpent = "";
+                    let completedByName = employeeName; // Por defecto es el asignado
 
                     if (task.recurrence) {
                         const completedInstance = task.completedInstances?.find(inst => inst.date === dateString);
                         if(completedInstance) {
                             status = "Completada";
                             timeSpent = completedInstance.time;
+                            completedByName = getEmployeeNameById(completedInstance.completedBy); // Usar el real
                         }
                     } else if (task.status === 'completada') {
                         status = "Completada";
                         timeSpent = task.estimatedTime;
+                        completedByName = employeeName; // En no recurrentes, el asignado es quien la completa
                     }
                     
                     const cleanTitle = `"${(task.title || '').replace(/"/g, '""')}"`;
                     const cleanEmployee = `"${(employeeName || '').replace(/"/g, '""')}"`;
+                    const cleanCompletedBy = `"${(completedByName || '').replace(/"/g, '""')}"`;
                     const cleanUrl = `"${(task.url || '').replace(/"/g, '""')}"`;
 
                     const row = [
                         cleanTitle,
                         cleanEmployee,
+                        cleanCompletedBy,
                         date.toLocaleDateString('es-ES', { timeZone: 'UTC' }),
                         task.type,
                         status,
@@ -1948,7 +2140,8 @@
             if(sessionPharmacyId){
                 currentPharmacyId = parseInt(sessionPharmacyId);
                 isAdminSession = sessionStorage.getItem('session_isAdmin') === 'true';
-                isLocked = false;
+                userRole = sessionStorage.getItem('userRole') || 'employee';
+                isLocked = userRole === 'employee' || sessionStorage.getItem('isLocked') === 'true';
                 listenToPharmacyData(currentPharmacyId);
                 showAppScreen();
             } else {
@@ -2012,22 +2205,43 @@
                 errorEl.textContent = '';
 
                 if (!allPasswords.admin) {
-                    allPasswords.admin = passHash;
+                    allPasswords.admin = { hash: passHash, role: 'admin' };
                     await savePasswords();
                     showToast('Contraseña de Administrador establecida.', 'success');
                     document.getElementById('initial-setup-message').classList.add('hidden');
                 }
 
-                const isAdmin = passHash === allPasswords.admin;
-                const isManager = passHash === allPasswords[`manager_${selectedPharmacyId}`];
+                const adminPass = allPasswords.admin;
+                const managerPass = allPasswords[`manager_${selectedPharmacyId}`];
+                const employeePass = allPasswords[`employee_${selectedPharmacyId}`]; 
 
-                if (isAdmin || isManager) {
-                    currentPharmacyId = selectedPharmacyId;
-                    isAdminSession = isAdmin;
+                let validLogin = false;
+
+                if (adminPass && passHash === adminPass.hash) {
+                    userRole = 'admin';
+                    isAdminSession = true;
                     isLocked = false;
+                    validLogin = true;
+                } else if (managerPass && passHash === managerPass.hash) {
+                    userRole = 'manager';
+                    isAdminSession = false;
+                    isLocked = false;
+                    validLogin = true;
+                } else if (employeePass && passHash === employeePass.hash) { 
+                    userRole = 'employee';
+                    isAdminSession = false;
+                    isLocked = true; // Bloqueado por defecto para empleados
+                    validLogin = true;
+                }
+
+
+                if (validLogin) {
+                    currentPharmacyId = selectedPharmacyId;
                     
                     sessionStorage.setItem('session_pharmacyId', currentPharmacyId);
                     sessionStorage.setItem('session_isAdmin', isAdminSession);
+                    sessionStorage.setItem('userRole', userRole);
+                    sessionStorage.setItem('isLocked', isLocked);
                     
                     listenToPharmacyData(currentPharmacyId);
                     showAppScreen();
@@ -2039,24 +2253,29 @@
 
             logoutBtn.addEventListener('click', () => {
                 if (pharmacyDataSubscription) {
-                    pharmacyDataSubscription.unsubscribe();
+                    supabase.removeChannel(pharmacyDataSubscription);
                     pharmacyDataSubscription = null;
                 }
                 sessionStorage.removeItem('session_pharmacyId');
                 sessionStorage.removeItem('session_isAdmin');
+                sessionStorage.removeItem('userRole');
+                sessionStorage.removeItem('isLocked');
                 currentPharmacyId = null;
                 isAdminSession = false;
                 isLocked = true;
+                userRole = 'employee';
                 tasks = [];
                 employees = [];
                 showLoginScreen();
             });
 
             lockBtn.addEventListener('click', () => {
+                if (userRole === 'employee') return; // Los empleados no pueden desbloquear
                 if(isLocked) {
                     promptForPassword();
                 } else {
                     isLocked = true;
+                    sessionStorage.setItem('isLocked', isLocked);
                     updateLockUI();
                 }
             });
@@ -2069,13 +2288,25 @@
                 const passHash = hashCode(input);
                 const errorEl = document.getElementById('password-error');
                 
-                const isAdmin = passHash === allPasswords.admin;
-                const isManager = passHash === allPasswords[`manager_${currentPharmacyId}`];
+                const adminPass = allPasswords.admin;
+                const managerPass = allPasswords[`manager_${currentPharmacyId}`];
 
-                if(isAdmin || isManager) {
+                let validLogin = false;
+                if(adminPass && passHash === adminPass.hash) {
+                    userRole = 'admin';
+                    isAdminSession = true;
+                    validLogin = true;
+                } else if (managerPass && passHash === managerPass.hash) {
+                    userRole = 'manager';
+                    isAdminSession = false;
+                    validLogin = true;
+                }
+
+                if(validLogin) {
                     isLocked = false;
-                    isAdminSession = isAdmin; 
                     sessionStorage.setItem('session_isAdmin', isAdminSession);
+                    sessionStorage.setItem('userRole', userRole);
+                    sessionStorage.setItem('isLocked', isLocked);
                     updateLockUI();
                     updateAdminUI();
                     closeModal(passwordModal);
@@ -2091,33 +2322,74 @@
                 const currentPass = document.getElementById('current-password').value;
                 const newPass = document.getElementById('new-password').value;
                 const errorEl = document.getElementById('change-password-error');
-                const resetPharmacyId = document.getElementById('admin-reset-pharmacy-select').value;
                 
+                const adminResetPharmacyId = document.getElementById('admin-reset-pharmacy-select').value;
+                const adminResetManagerPass = document.getElementById('admin-reset-manager-pass').value;
+                const adminResetEmployeePass = document.getElementById('admin-reset-employee-pass').value;
+                const managerSetEmployeePass = document.getElementById('manager-set-employee-pass').value;
+
+                let passwordsChanged = false;
+
                 if (isAdminSession) {
-                    if(hashCode(currentPass) !== allPasswords.admin) {
+                    if(hashCode(currentPass) !== allPasswords.admin.hash) {
                         errorEl.textContent = 'La contraseña de Admin es incorrecta.';
                         return;
                     }
-                    if (resetPharmacyId) {
-                        allPasswords[`manager_${resetPharmacyId}`] = hashCode(newPass);
-                        showToast(`Contraseña para ${allPharmacies.find(p=>p.id==resetPharmacyId).name} cambiada.`, 'success');
-                    } else { 
-                        allPasswords.admin = hashCode(newPass);
+                    if (newPass) {
+                        allPasswords.admin = { hash: hashCode(newPass), role: 'admin' };
                         showToast('Contraseña de Administrador cambiada.', 'success');
+                        passwordsChanged = true;
                     }
-                } else {
-                    if(hashCode(currentPass) !== allPasswords[`manager_${currentPharmacyId}`]) {
+                    
+                    if (adminResetPharmacyId) {
+                        if (adminResetManagerPass) {
+                            allPasswords[`manager_${adminResetPharmacyId}`] = { hash: hashCode(adminResetManagerPass), role: 'manager' };
+                            showToast(`Contraseña de Gerente para ${allPharmacies.find(p=>p.id==adminResetPharmacyId).name} actualizada.`, 'success');
+                            passwordsChanged = true;
+                        }
+                        if (adminResetEmployeePass) {
+                            allPasswords[`employee_${adminResetPharmacyId}`] = { hash: hashCode(adminResetEmployeePass), role: 'employee' };
+                            showToast(`Contraseña de Empleado para ${allPharmacies.find(p=>p.id==adminResetPharmacyId).name} actualizada.`, 'success');
+                            passwordsChanged = true;
+                        }
+                    }
+
+                } else { // Es Gerente
+                    if(hashCode(currentPass) !== allPasswords[`manager_${currentPharmacyId}`].hash) {
                          errorEl.textContent = 'La contraseña actual es incorrecta.';
                          return;
                     }
-                    allPasswords[`manager_${currentPharmacyId}`] = hashCode(newPass);
-                    showToast('Contraseña de Gerente cambiada.', 'success');
+                    if (newPass) {
+                        allPasswords[`manager_${currentPharmacyId}`] = { hash: hashCode(newPass), role: 'manager' };
+                        showToast('Contraseña de Gerente cambiada.', 'success');
+                        passwordsChanged = true;
+                    }
+                    if (managerSetEmployeePass) {
+                        allPasswords[`employee_${currentPharmacyId}`] = { hash: hashCode(managerSetEmployeePass), role: 'employee' };
+                        showToast('Contraseña de Empleado cambiada.', 'success');
+                        passwordsChanged = true;
+                    }
                 }
 
-                await savePasswords();
-                closeModal(changePasswordModal);
+                if (passwordsChanged) {
+                    await savePasswords();
+                    closeModal(changePasswordModal);
+                } else {
+                     errorEl.textContent = 'No se introdujo ninguna contraseña nueva.';
+                }
             });
             document.getElementById('cancel-change-password-btn').addEventListener('click', () => closeModal(changePasswordModal));
+            
+            document.getElementById('admin-reset-pharmacy-select').addEventListener('change', (e) => {
+                const pharmacyId = e.target.value;
+                const adminPharmacyPasswords = document.getElementById('admin-pharmacy-passwords');
+                if (pharmacyId) {
+                    adminPharmacyPasswords.classList.remove('hidden');
+                } else {
+                    adminPharmacyPasswords.classList.add('hidden');
+                }
+            });
+
 
             // Admin: Gestión de Farmacias
             managePharmaciesBtn.addEventListener('click', openManagePharmaciesModal);
@@ -2128,9 +2400,51 @@
             // Lógica del formulario de tareas
             taskForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const id = parseInt(document.getElementById('task-id').value);
-                const type = document.getElementById('task-type').value;
                 
+                const id = parseInt(document.getElementById('task-id').value);
+                let task;
+                let existingTask = false;
+
+                if(id) {
+                    task = tasks.find(t => t.id === id);
+                    if (task) existingTask = true;
+                }
+                
+                if (userRole === 'employee') {
+                    // --- LÓGICA DE EMPLEADO (SOLO PUEDE GUARDAR SI EDITA) ---
+                    if (!task) return; // Empleado no puede crear
+
+                    if (task.recurrence) {
+                        // Para tareas recurrentes, el empleado solo actualiza la instancia
+                        const instanceDate = document.getElementById('task-instance-date').value;
+                        const dateIndex = task.completedInstances.findIndex(inst => inst.date === instanceDate);
+                        
+                        const actualTime = parseInt(document.getElementById('task-actual-time').value) || task.estimatedTime;
+                        const completedBy = parseInt(document.getElementById('task-completed-by').value) || task.assignedTo;
+
+                        if (dateIndex > -1) { // Si la tarea está completada, actualizar su tiempo y quién la hizo
+                            task.completedInstances[dateIndex].time = actualTime;
+                            task.completedInstances[dateIndex].completedBy = completedBy;
+                        } else {
+                            // Si no está marcada como completada, el empleado no puede "guardar" cambios
+                            // solo puede "marcar como completada" (ver 'toggle-status-btn')
+                            // O reasignar... pero reasignar para una instancia es 'completedBy'
+                             showToast("Usa 'Marcar Completada' para guardar tus cambios en tareas recurrentes.", "error");
+                             closeModal(taskModal);
+                             return;
+                        }
+                    } else {
+                        // Para tareas NO recurrentes, el empleado SÍ puede reasignar
+                        task.assignedTo = parseInt(document.getElementById('task-assigned-to').value) || null;
+                    }
+                    
+                    await savePharmacyData();
+                    closeModal(taskModal);
+                    return;
+                }
+
+                // --- LÓGICA DE ADMIN/GERENTE ---
+                const type = document.getElementById('task-type').value;
                 let taskData = {
                     id: id || Date.now(),
                     title: document.getElementById('task-title').value,
@@ -2144,13 +2458,10 @@
                     url: document.getElementById('task-url').value.trim() || null
                 };
 
-                if(id) {
-                    const existingTask = tasks.find(t => t.id === id);
-                    if(existingTask) {
-                        taskData.status = existingTask.status;
-                        taskData.completedInstances = existingTask.completedInstances;
-                        taskData.completionDate = existingTask.completionDate;
-                    }
+                if(existingTask) {
+                    taskData.status = task.status;
+                    taskData.completedInstances = task.completedInstances;
+                    taskData.completionDate = task.completionDate;
                 }
 
                 const recurrenceType = document.getElementById('task-recurrence-type').value;
@@ -2172,7 +2483,7 @@
                      taskData.dueDate = document.getElementById('task-due-date').value || null;
                 }
 
-                if (id) {
+                if (existingTask) {
                     const index = tasks.findIndex(t => t.id === id);
                     tasks[index] = taskData;
                 }
@@ -2211,7 +2522,8 @@
                             task.completedInstances.splice(dateIndex, 1);
                         } else {
                             const actualTime = parseInt(document.getElementById('task-actual-time').value) || task.estimatedTime;
-                            task.completedInstances.push({ date: instanceDate, time: actualTime });
+                            const completedBy = parseInt(document.getElementById('task-completed-by').value) || task.assignedTo;
+                            task.completedInstances.push({ date: instanceDate, time: actualTime, completedBy: completedBy });
                         }
                     }
                 }
@@ -2224,6 +2536,7 @@
                         task.completionDate = null;
                     }
                 }
+                
                 await savePharmacyData();
                 openModal(task, instanceDate);
             });
@@ -2282,4 +2595,3 @@
     </script>
 </body>
 </html>
-
