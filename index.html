@@ -95,6 +95,14 @@
          body.role-employee #delete-task-btn {
             display: none !important;
          }
+         
+        /* Estilo para el icono de chevron colapsable */
+        .chevron-icon {
+            transition: transform 0.2s ease-in-out;
+        }
+        .rotate-180 {
+            transform: rotate(180deg);
+        }
 
 
         @media print {
@@ -235,8 +243,11 @@
             
              <!-- Filtros -->
             <div>
-                <h2 class="text-lg font-semibold mb-3 border-b pb-2">Filtros</h2>
-                <div class="space-y-3">
+                <h2 id="toggle-filtros" class="text-lg font-semibold mb-3 border-b pb-2 flex justify-between items-center cursor-pointer">
+                    <span>Filtros</span>
+                    <svg class="chevron-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </h2>
+                <div id="content-filtros" class="collapsible-content space-y-3">
                     <div>
                         <label for="filter-employee" class="block text-sm font-medium">Empleado:</label>
                         <select id="filter-employee" class="w-full mt-1 border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
@@ -260,62 +271,92 @@
 
             <!-- Resumen Total de la Farmacia -->
             <div>
-                <h2 class="text-lg font-semibold mb-3 border-b pb-2">Resumen Total de la Farmacia</h2>
-                <div id="pharmacy-summary-report" class="p-3 bg-blue-50 rounded-lg text-sm">
-                    <!-- Summary will be generated here -->
+                <h2 id="toggle-resumen-total" class="text-lg font-semibold mb-3 border-b pb-2 flex justify-between items-center cursor-pointer">
+                    <span>Resumen Total de la Farmacia</span>
+                    <svg class="chevron-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </h2>
+                <div id="content-resumen-total" class="collapsible-content">
+                    <div id="pharmacy-summary-report" class="p-3 bg-blue-50 rounded-lg text-sm">
+                        <!-- Summary will be generated here -->
+                    </div>
                 </div>
             </div>
 
             <!-- Sección de Empleados y Tiempos -->
             <div>
-                <h2 class="text-lg font-semibold mb-3 border-b pb-2">Resumen por Empleado</h2>
-                <div id="employee-report" class="space-y-3">
-                    <!-- El reporte se generará aquí -->
+                <h2 id="toggle-resumen-empleado" class="text-lg font-semibold mb-3 border-b pb-2 flex justify-between items-center cursor-pointer">
+                    <span>Resumen por Empleado</span>
+                    <svg class="chevron-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </h2>
+                <div id="content-resumen-empleado" class="collapsible-content">
+                    <div id="employee-report" class="space-y-3">
+                        <!-- El reporte se generará aquí -->
+                    </div>
                 </div>
             </div>
 
             <!-- Sección de Gestión de Empleados -->
             <div class="protected-control">
-                <h2 class="text-lg font-semibold mb-3 border-b pb-2">Gestionar Empleados</h2>
-                <form id="add-employee-form" class="flex gap-2 mb-3">
-                    <input type="text" id="new-employee-name" placeholder="Nombre del empleado" class="w-full border-gray-300 rounded-lg shadow-sm text-sm" required>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 text-sm">Añadir</button>
-                </form>
-                <div id="employee-list" class="space-y-2">
-                    <!-- Lista de empleados se generará aquí -->
+                <h2 id="toggle-gestion-empleados" class="text-lg font-semibold mb-3 border-b pb-2 flex justify-between items-center cursor-pointer">
+                    <span>Gestionar Empleados</span>
+                    <svg class="chevron-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </h2>
+                <div id="content-gestion-empleados" class="collapsible-content">
+                    <form id="add-employee-form" class="flex gap-2 mb-3">
+                        <input type="text" id="new-employee-name" placeholder="Nombre del empleado" class="w-full border-gray-300 rounded-lg shadow-sm text-sm" required>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 text-sm">Añadir</button>
+                    </form>
+                    <div id="employee-list" class="space-y-2">
+                        <!-- Lista de empleados se generará aquí -->
+                    </div>
+                     <button id="save-employees-btn" class="mt-4 w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-green-700 transition-colors duration-300">
+                        Guardar Cambios de Empleados
+                    </button>
                 </div>
-                 <button id="save-employees-btn" class="mt-4 w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-green-700 transition-colors duration-300">
-                    Guardar Cambios de Empleados
-                </button>
             </div>
             
             <!-- Seguridad -->
             <div class="protected-control">
-                 <h2 class="text-lg font-semibold mb-3 border-b pb-2">Seguridad</h2>
-                 <button id="change-password-btn" class="w-full text-sm text-blue-600 hover:underline text-left">Cambiar Contraseña</button>
+                 <h2 id="toggle-seguridad" class="text-lg font-semibold mb-3 border-b pb-2 flex justify-between items-center cursor-pointer">
+                    <span>Seguridad</span>
+                    <svg class="chevron-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </h2>
+                 <div id="content-seguridad" class="collapsible-content">
+                    <button id="change-password-btn" class="w-full text-sm text-blue-600 hover:underline text-left">Cambiar Contraseña</button>
+                 </div>
             </div>
 
             <!-- Admin -->
             <div id="admin-controls" class="hidden protected-control">
-                <h2 class="text-lg font-semibold mb-3 border-b pb-2">Administración</h2>
-                <button id="manage-pharmacies-btn" class="w-full text-sm text-blue-600 hover:underline text-left">Gestionar Farmacias</button>
-                 <button id="export-global-csv-btn" class="w-full bg-red-600 text-white font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-red-700 transition-colors duration-300 mt-4">
-                    Exportar Informe Global (CSV)
-                </button>
+                <h2 id="toggle-admin" class="text-lg font-semibold mb-3 border-b pb-2 flex justify-between items-center cursor-pointer">
+                    <span>Administración</span>
+                    <svg class="chevron-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </h2>
+                <div id="content-admin" class="collapsible-content space-y-4">
+                   <button id="manage-pharmacies-btn" class="w-full text-sm text-blue-600 hover:underline text-left">Gestionar Farmacias</button>
+                    <button id="export-global-csv-btn" class="w-full bg-red-600 text-white font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-red-700 transition-colors duration-300">
+                        Exportar Informe Global (CSV)
+                    </button>
+                </div>
            </div>
            
             <!-- Integración con Google Tasks -->
             <div id="google-tasks-integration">
-                <h2 class="text-lg font-semibold mb-3 border-b pb-2">Integración con Google</h2>
-                <div id="google-auth-container">
-                    <button id="connect-google-btn" class="w-full bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-300">Conectar con Google</button>
-                </div>
-                <div id="google-sync-controls" class="hidden space-y-2 mt-2">
-                     <p class="text-sm font-medium text-green-700">Conectado a Google.</p>
-                    <label for="google-task-lists" class="text-sm font-medium">Lista de Tareas de Google:</label>
-                    <select id="google-task-lists" class="w-full border-gray-300 rounded-lg shadow-sm"></select>
-                    <button id="sync-google-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-blue-700 protected-control">Sincronizar Tareas</button>
-                    <button id="disconnect-google-btn" class="w-full text-sm text-red-600 hover:underline">Desconectar</button>
+                <h2 id="toggle-google" class="text-lg font-semibold mb-3 border-b pb-2 flex justify-between items-center cursor-pointer">
+                    <span>Integración con Google</span>
+                    <svg class="chevron-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </h2>
+                <div id="content-google" class="collapsible-content">
+                    <div id="google-auth-container">
+                        <button id="connect-google-btn" class="w-full bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-300">Conectar con Google</button>
+                    </div>
+                    <div id="google-sync-controls" class="hidden space-y-2 mt-2">
+                         <p class="text-sm font-medium text-green-700">Conectado a Google.</p>
+                        <label for="google-task-lists" class="text-sm font-medium">Lista de Tareas de Google:</label>
+                        <select id="google-task-lists" class="w-full border-gray-300 rounded-lg shadow-sm"></select>
+                        <button id="sync-google-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-blue-700 protected-control">Sincronizar Tareas</button>
+                        <button id="disconnect-google-btn" class="w-full text-sm text-red-600 hover:underline">Desconectar</button>
+                    </div>
                 </div>
             </div>
             
@@ -2271,7 +2312,9 @@
             document.getElementById('addTaskBtn').addEventListener('click', () => openModal());
             printViewBtn.addEventListener('click', () => window.print());
             exportCsvBtn.addEventListener('click', handleExportCSV);
-            exportGlobalCsvBtn.addEventListener('click', handleExportGlobalCSV);
+            if (exportGlobalCsvBtn) {
+                exportGlobalCsvBtn.addEventListener('click', handleExportGlobalCSV);
+            }
             userManualBtn.addEventListener('click', () => {
                 const modal = document.getElementById('userManualModal');
                 modal.classList.remove('hidden');
