@@ -103,6 +103,11 @@
         .rotate-180 {
             transform: rotate(180deg);
         }
+        
+        /* Ocultar contenido colapsable por defecto */
+        .collapsible-content {
+            display: none;
+        }
 
 
         @media print {
@@ -1398,15 +1403,16 @@
                             }
                         });
                     } else if (task.status === 'completada' && task.assignedTo === employee.id) {
-                         const completionMonth = parseInt(task.completionDate.split('-')[1], 10) - 1;
-                         const completionYear = parseInt(task.completionDate.split('-')[0], 10);
-                         if (completionMonth === month && completionYear === year) {
-                            totalCompletedTaskCount++;
-                            totalCompletedTime += task.estimatedTime || 0;
-                         }
+                          const completionMonth = parseInt(task.completionDate.split('-')[1], 10) - 1;
+                          const completionYear = parseInt(task.completionDate.split('-')[0], 10);
+                          if (completionMonth === month && completionYear === year) {
+                             totalCompletedTaskCount++;
+                             totalCompletedTime += task.estimatedTime || 0;
+                          }
                     }
                 });
                 
+                const pendingTaskCount = totalAssignedTaskCount - totalCompletedTaskCount;
                 const plannedMinutes = (employee.plannedHours || 0) * 60;
                 const assignedPercentage = plannedMinutes > 0 ? ((totalAssignedTime / plannedMinutes) * 100).toFixed(1) : 0;
                 const completedPercentage = plannedMinutes > 0 ? ((totalCompletedTime / plannedMinutes) * 100).toFixed(1) : 0;
@@ -2286,8 +2292,34 @@
             // Ocultar el campo de Client ID de Google ya que está prefijado
             const googleClientIdContainer = document.getElementById('google-client-id');
             if (googleClientIdContainer) {
-                 googleClientIdContainer.parentElement.style.display = 'none';
+                 googleClientIdContainer.style.display = 'none'; // Ocultar el input
+                 const label = document.querySelector('label[for="google-client-id"]');
+                 if (label) label.style.display = 'none'; // Ocultar la etiqueta
             }
+
+            // --- Lógica de Colapsables ---
+            const collapsibleHeaders = document.querySelectorAll('[id^="toggle-"]');
+            collapsibleHeaders.forEach(header => {
+                const contentId = header.id.replace('toggle-', 'content-');
+                const content = document.getElementById(contentId);
+                const chevron = header.querySelector('.chevron-icon');
+
+                header.addEventListener('click', () => {
+                    if (content) {
+                        const isHidden = content.style.display === 'none';
+                        content.style.display = isHidden ? 'block' : 'none';
+                        if (chevron) {
+                            chevron.classList.toggle('rotate-180', isHidden);
+                        }
+                    }
+                });
+            });
+
+            // Abrir "Filtros" y "Resumen Total" por defecto
+            document.getElementById('content-filtros').style.display = 'block';
+            document.querySelector('#toggle-filtros .chevron-icon')?.classList.add('rotate-180');
+            document.getElementById('content-resumen-total').style.display = 'block';
+            document.querySelector('#toggle-resumen-total .chevron-icon')?.classList.add('rotate-180');
 
 
             // Navegación Calendario
@@ -2467,7 +2499,7 @@
                 let passwordsChanged = false;
 
                 if (isAdminSession) {
-                    if(hashCode(currentPass) !== allPasswords.admin.hash) {
+                    if(!allPasswords.admin || hashCode(currentPass) !== allPasswords.admin.hash) {
                         errorEl.textContent = 'La contraseña de Admin es incorrecta.';
                         return;
                     }
@@ -2491,7 +2523,7 @@
                     }
 
                 } else { // Es Gerente
-                    if(hashCode(currentPass) !== allPasswords[`manager_${currentPharmacyId}`].hash) {
+                    if(!allPasswords[`manager_${currentPharmacyId}`] || hashCode(currentPass) !== allPasswords[`manager_${currentPharmacyId}`].hash) {
                          errorEl.textContent = 'La contraseña actual es incorrecta.';
                          return;
                     }
@@ -2562,8 +2594,8 @@
                             task.completedInstances[dateIndex].time = actualTime;
                             task.completedInstances[dateIndex].completedBy = completedBy;
                         }
-                        // Si no está completada, el botón "toggle" se encarga de añadirla.
-                        // El empleado también puede reasignar el "realizado por" y guardar.
+                        // Si la instancia no existe, el botón "Guardar" no hace nada
+                        // (solo el botón "Marcar Completada" la crea)
                         
                     } else {
                         // Para tareas NO recurrentes, el empleado SÍ puede reasignar
@@ -2592,7 +2624,10 @@
 
                 if(existingTask) {
                     taskData.status = task.status;
-                    taskData.completedInstances = task.completedInstances;
+                    // Mantener las instancias completadas si la tarea es recurrente
+                    if (task.recurrence) {
+                        taskData.completedInstances = task.completedInstances;
+                    }
                     taskData.completionDate = task.completionDate;
                 }
 
