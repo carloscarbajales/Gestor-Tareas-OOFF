@@ -344,7 +344,7 @@
                     </button>
                 </div>
            </div>
-            
+           
             <!-- Integración con Google Tasks -->
             <div id="google-tasks-integration" class="hidden"> <!-- Oculto por ahora -->
                 <h2 id="toggle-google" class="text-lg font-semibold mb-3 border-b pb-2 flex justify-between items-center cursor-pointer">
@@ -722,7 +722,7 @@
         // --- ESTADO Y DATOS LOCALES ---
         let currentDate = new Date();
         let tasks = [];
-        let employees = [];
+        let employees = []; // Esto incluirá 'plannedHours' cargadas dinámicamente
         let isLocked = true;
         let userRole = 'employee'; // 'admin', 'manager', 'employee'
         
@@ -824,6 +824,13 @@
             const d = new Date(date);
             d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
             return d.toISOString().split('T')[0];
+        };
+
+        // Nueva función para obtener el string YYYY-MM
+        const getCurrentMonthYearString = () => {
+            const year = currentDate.getFullYear();
+            const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+            return `${year}-${month}`;
         };
         
         const hashCode = (str) => {
@@ -928,20 +935,68 @@
             }
         }
 
-        async function savePharmacyData() {
+        async function savePharmacyData(saveOnlyBase = false) {
             if (!currentPharmacyId) return;
-            const { error } = await supabase
+            
+            // 1. Guardar datos base (nombre, id, vacaciones) en pharmacy_data
+            // Extraer solo la info base de los empleados
+            const employeeBaseData = employees.map(emp => ({
+                id: emp.id,
+                name: emp.name,
+                vacationStart: emp.vacationStart || '',
+                vacationEnd: emp.vacationEnd || ''
+            }));
+            
+            const { error: dataError } = await supabase
                 .from('pharmacy_data')
-                .update({ tasks: tasks, employees: employees })
+                .update({ tasks: tasks, employees: employeeBaseData })
                 .eq('id', currentPharmacyId);
-            if (error) console.error('Error saving pharmacy data:', error);
+                
+            if (dataError) console.error('Error saving pharmacy data (base):', dataError);
+            
+            // Si la llamada es solo para guardar la base (ej. al borrar empleado), no guardar horas.
+            if (saveOnlyBase) return; 
+            
+            // 2. Guardar horas planificadas en employee_monthly_data
+            await saveEmployeeHours();
+        }
+        
+        async function saveEmployeeHours(isNewEmployee = false) {
+             const monthYearString = getCurrentMonthYearString();
+             
+             // Mapear los datos de horas del array local 'employees'
+             const employeeHoursData = employees.map(emp => ({
+                pharmacy_id: currentPharmacyId,
+                employee_id: emp.id,
+                month_year: monthYearString,
+                planned_hours: emp.plannedHours || 0
+            }));
+            
+            if (employeeHoursData.length === 0) return;
+
+            // 'upsert' insertará nuevas filas o actualizará las existentes
+            const { error: hoursError } = await supabase
+                .from('employee_monthly_data')
+                .upsert(employeeHoursData, { onConflict: 'pharmacy_id, employee_id, month_year' });
+
+            if (hoursError) console.error('Error saving employee hours:', hoursError);
+            
+            if (!isNewEmployee) { // No mostrar toast si solo se está añadiendo un empleado
+                showToast('Datos de empleados guardados.', 'success');
+            }
         }
 
         async function createInitialPharmacyData(pharmacyId) {
+            // Ahora 'employees' solo guarda la info base
             employees = [
-                { id: 1, name: 'Gerente' }, { id: 2, name: 'Adjunto Gt' }, { id: 3, name: 'Dinamizador Dermo' },
-                { id: 4, name: 'Equipo 1' }, { id: 5, name: 'Equipo 2' }, { id: 6, name: 'Equipo 3' },
-                { id: 7, name: 'Equipo 4' }, { id: 8, name: 'Equipo 5' }
+                { id: 1, name: 'Gerente', vacationStart: '', vacationEnd: '' }, 
+                { id: 2, name: 'Adjunto Gt', vacationStart: '', vacationEnd: '' }, 
+                { id: 3, name: 'Dinamizador Dermo', vacationStart: '', vacationEnd: '' },
+                { id: 4, name: 'Equipo 1', vacationStart: '', vacationEnd: '' }, 
+                { id: 5, name: 'Equipo 2', vacationStart: '', vacationEnd: '' }, 
+                { id: 6, name: 'Equipo 3', vacationStart: '', vacationEnd: '' },
+                { id: 7, name: 'Equipo 4', vacationStart: '', vacationEnd: '' }, 
+                { id: 8, name: 'Equipo 5', vacationStart: '', vacationEnd: '' }
             ];
             tasks = [];
             
@@ -952,15 +1007,38 @@
             if (error) {
                 console.error('Error creating initial pharmacy data:', error);
             } else {
+                // No es necesario crear horas para el mes 0, se crearán al guardar la primera vez
                 renderAll();
             }
         }
+
+        async function loadEmployeeHours() {
+            const monthYearString = getCurrentMonthYearString();
+            
+            const { data: hoursData, error: hoursError } = await supabase
+                .from('employee_monthly_data')
+                .select('employee_id, planned_hours')
+                .eq('pharmacy_id', currentPharmacyId)
+                .eq('month_year', monthYearString);
+
+            if (hoursError) {
+                console.error('Error fetching employee hours:', hoursError);
+            }
+
+            // Mapear las horas a los empleados locales
+            employees.forEach(emp => {
+                const data = hoursData?.find(h => h.employee_id === emp.id);
+                emp.plannedHours = data ? data.planned_hours : 0; // Asignar 0 si no hay entrada para este mes
+            });
+        }
+
 
         function listenToPharmacyData(pharmacyId) {
             if (pharmacyDataSubscription) {
                 pharmacyDataSubscription.unsubscribe();
             }
             
+            // Canal 1: Escuchar cambios en Tareas y lista base de Empleados
             pharmacyDataSubscription = supabase
                 .channel(`pharmacy-data-${pharmacyId}`)
                 .on('postgres_changes', {
@@ -968,11 +1046,13 @@
                     schema: 'public',
                     table: 'pharmacy_data',
                     filter: `id=eq.${pharmacyId}`
-                }, payload => {
-                    console.log('Realtime update received:', payload);
+                }, async (payload) => {
+                    console.log('Realtime update received (tasks/employees base):', payload);
                     const data = payload.new;
                     tasks = data.tasks || [];
-                    employees = data.employees || [];
+                    employees = data.employees || []; 
+                    
+                    await loadEmployeeHours(); // Recargar las horas para el mes actual
                     
                     let needsMigration = false;
                     tasks.forEach(task => {
@@ -988,13 +1068,15 @@
                             task.completedInstances = [];
                         }
                     });
-                    if (needsMigration) savePharmacyData(); // Save back migrated data
+                    if (needsMigration) await savePharmacyData(); 
                     
                     renderAll();
                 })
+                // Canal 2: Escuchar cambios en las horas de los empleados (en un futuro, si otro gerente edita)
+                // Por simplicidad, lo unimos al subscribe principal
                 .subscribe(async (status) => {
                     if (status === 'SUBSCRIBED') {
-                        // Now fetch initial data
+                        // Carga inicial de datos
                         const { data, error } = await supabase
                             .from('pharmacy_data')
                             .select('tasks, employees')
@@ -1006,7 +1088,10 @@
                             await createInitialPharmacyData(pharmacyId);
                         } else {
                             tasks = data.tasks || [];
-                            employees = data.employees || [];
+                            employees = data.employees || []; // Lista base SIN horas
+                            
+                            // Cargar las horas del mes actual
+                            await loadEmployeeHours(); 
                             
                             let needsMigration = false;
                             tasks.forEach(task => {
@@ -1022,17 +1107,22 @@
                                     task.completedInstances = [];
                                 }
                             });
-                            if(employees.length === 0) {
+                            if(employees.length === 0 || !employees[0].hasOwnProperty('vacationStart')) { 
                                 employees = [
-                                    { id: 1, name: 'Gerente' }, { id: 2, name: 'Adjunto Gt' }, { id: 3, name: 'Dinamizador Dermo' },
-                                    { id: 4, name: 'Equipo 1' }, { id: 5, name: 'Equipo 2' }, { id: 6, name: 'Equipo 3' },
-                                    { id: 7, name: 'Equipo 4' }, { id: 8, name: 'Equipo 5' }
+                                    { id: 1, name: 'Gerente', vacationStart: '', vacationEnd: '' }, 
+                                    { id: 2, name: 'Adjunto Gt', vacationStart: '', vacationEnd: '' }, 
+                                    { id: 3, name: 'Dinamizador Dermo', vacationStart: '', vacationEnd: '' },
+                                    { id: 4, name: 'Equipo 1', vacationStart: '', vacationEnd: '' }, 
+                                    { id: 5, name: 'Equipo 2', vacationStart: '', vacationEnd: '' }, 
+                                    { id: 6, name: 'Equipo 3', vacationStart: '', vacationEnd: '' },
+                                    { id: 7, name: 'Equipo 4', vacationStart: '', vacationEnd: '' }, 
+                                    { id: 8, name: 'Equipo 5', vacationStart: '', vacationEnd: '' }
                                 ];
-                                needsMigration = true;
+                                needsMigration = true; // Guardará la lista de empleados base
                             }
                             
                             if (needsMigration) {
-                                await savePharmacyData();
+                                await savePharmacyData(true); // Guardar solo la info base
                             } else {
                                 renderAll();
                             }
@@ -1306,8 +1396,8 @@
                     </div>
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <div>
-                            <label for="planned-hours-${emp.id}" class="block text-gray-500">Horas Planificadas</label>
-                            <input type="number" id="planned-hours-${emp.id}" value="${emp.plannedHours || ''}" class="w-full border-gray-300 rounded-md shadow-sm text-xs p-1">
+                            <label for="planned-hours-${emp.id}" class="block text-gray-500">Horas (Este Mes)</label>
+                            <input type="number" id="planned-hours-${emp.id}" value="${emp.plannedHours || 0}" class="w-full border-gray-300 rounded-md shadow-sm text-xs p-1">
                         </div>
                          <div>
                             <!-- Placeholder for a summary if needed -->
@@ -1412,7 +1502,7 @@
                     }
                 });
                 
-                const pendingTaskCount = totalAssignedTaskCount - totalCompletedTaskCount;
+                // plannedHours ahora viene del estado local que se cargó para este mes
                 const plannedMinutes = (employee.plannedHours || 0) * 60;
                 const assignedPercentage = plannedMinutes > 0 ? ((totalAssignedTime / plannedMinutes) * 100).toFixed(1) : 0;
                 const completedPercentage = plannedMinutes > 0 ? ((totalCompletedTime / plannedMinutes) * 100).toFixed(1) : 0;
@@ -1443,7 +1533,7 @@
                             </div>
                         </div>
                         <div class="mt-2 pt-2 border-t">
-                             <p class="text-sm text-gray-600">Tiempo Asignado: <strong>${formatTime(totalAssignedTime)}</strong> / ${employee.plannedHours || 'N/A'}h</p>
+                             <p class="text-sm text-gray-600">Tiempo Asignado: <strong>${formatTime(totalAssignedTime)}</strong> / ${employee.plannedHours || '0'}h</p>
                              <p class="text-sm text-green-700">Tiempo Completado: <strong>${formatTime(totalCompletedTime)}</strong></p>
                              <div class="grid grid-cols-2 gap-x-2 text-xs mt-2">
                                 <div>
@@ -1491,39 +1581,93 @@
             const name = newEmployeeNameInput.value.trim();
             if (name) {
                 const newId = employees.length > 0 ? Math.max(...employees.map(emp => emp.id)) + 1 : 1;
-                employees.push({ id: newId, name: name, plannedHours: 0, vacationStart: '', vacationEnd: '' });
-                await savePharmacyData();
+                // REVERTIDO: Añadir con plannedHours a 0 (para el estado local)
+                const newEmployee = { id: newId, name: name, plannedHours: 0, vacationStart: '', vacationEnd: '' };
+                employees.push(newEmployee);
+                
+                // Guardar la lista de empleados base (sin horas)
+                await savePharmacyData(true); 
+                
+                // Guardar la hora=0 para este mes
+                await supabase.from('employee_monthly_data').insert({
+                    pharmacy_id: currentPharmacyId,
+                    employee_id: newId,
+                    month_year: getCurrentMonthYearString(),
+                    planned_hours: 0
+                });
+                
                 newEmployeeNameInput.value = '';
+                renderEmployeeUI(); // Re-renderizar la UI de empleados
             }
         };
 
         async function handleSaveEmployees() {
              if (isLocked) { promptForPassword(); return; }
+             
+             // 1. Actualizar el array local de empleados desde los inputs
              const employeeItems = document.querySelectorAll('.employee-item');
              employeeItems.forEach(item => {
                 const empId = parseInt(item.dataset.employeeId);
                 const employee = employees.find(e => e.id === empId);
                 if(employee) {
-                    employee.plannedHours = parseInt(item.querySelector(`#planned-hours-${empId}`).value) || 0;
+                    // REVERTIDO: Guardar plannedHours en el objeto local 'employees'
+                    employee.plannedHours = parseInt(item.querySelector(`#planned-hours-${empId}`).value) || 0; 
                     employee.vacationStart = item.querySelector(`#vacation-start-${empId}`).value || '';
                     employee.vacationEnd = item.querySelector(`#vacation-end-${empId}`).value || '';
                 }
              });
-             await savePharmacyData();
+             
+             // 2. Guardar la info base (name, vacations)
+             // 3. Guardar la info mensual (plannedHours)
+             // savePharmacyData(false) se encarga de hacer ambas cosas
+             await savePharmacyData(false); 
+             
              showToast('Datos de empleados guardados.', 'success');
         }
 
         async function handleDeleteEmployee(id) {
             if (isLocked) { promptForPassword(); return; }
-            if (confirm('¿Seguro que quieres eliminar este empleado? Las tareas que tenga asignadas quedarán sin asignar.')) {
+            
+            // CORRECCIÓN: Quitar el confirm() que bloquea la app
+            // if (confirm('¿Seguro que quieres eliminar este empleado? Las tareas que tenga asignadas quedarán sin asignar.')) {
+                
+                // 1. Quitar al empleado del array local
                 employees = employees.filter(emp => emp.id !== id);
+                
+                // 2. Quitar al empleado de las tareas asignadas
                 tasks.forEach(task => {
                     if (task.assignedTo === id) {
                         task.assignedTo = null;
                     }
+                    // También limpiar de 'completedBy' en instancias recurrentes
+                    if (task.completedInstances) {
+                        task.completedInstances.forEach(inst => {
+                            if (inst.completedBy === id) {
+                                inst.completedBy = null; 
+                            }
+                        });
+                    }
                 });
-                await savePharmacyData();
-            }
+                
+                // 3. Guardar la lista de empleados y tareas actualizadas (info base)
+                await savePharmacyData(true); // 'true' para guardar solo la info base
+                
+                // 4. (¡EL PASO QUE FALTABA!) Borrar todos los registros de horas de este empleado para esta farmacia
+                const { error } = await supabase
+                    .from('employee_monthly_data')
+                    .delete()
+                    .match({ pharmacy_id: currentPharmacyId, employee_id: id });
+                
+                if (error) {
+                    console.error("Error eliminando horas de empleado:", error);
+                    showToast("Error al eliminar los datos de horas del empleado.", "error");
+                } else {
+                     showToast("Empleado eliminado con éxito.", "success");
+                }
+                
+                // 5. Re-renderizar la UI
+                renderAll(); 
+            // }
         };
 
         // --- MODALES ---
@@ -1982,6 +2126,19 @@
             appContainer.classList.add('flex');
             const pharmacy = allPharmacies.find(p => p.id === currentPharmacyId);
             pharmacyNameHeader.textContent = pharmacy ? pharmacy.name : 'Farmacia Desconocida';
+            
+            // Mover la lógica de colapsables aquí
+            // Abrir "Filtros" y "Resumen Total" por defecto
+            const contentFiltros = document.getElementById('content-filtros');
+            if (contentFiltros) {
+                contentFiltros.style.display = 'block';
+                document.querySelector('#toggle-filtros .chevron-icon')?.classList.add('rotate-180');
+            }
+            const contentResumen = document.getElementById('content-resumen-total');
+            if (contentResumen) {
+                contentResumen.style.display = 'block';
+                document.querySelector('#toggle-resumen-total .chevron-icon')?.classList.add('rotate-180');
+            }
         }
         
         const handleExportCSV = () => {
@@ -2080,13 +2237,33 @@
             const month = currentDate.getMonth();
             const monthName = currentDate.toLocaleString('es-ES', { month: 'long' }).toUpperCase();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const monthYearString = getCurrentMonthYearString(); // Para el informe global
+
+            // Cargar TODAS las horas de TODOS los empleados para ESE MES
+            const { data: allMonthlyData, error: hoursError } = await supabase
+                .from('employee_monthly_data')
+                .select('*')
+                .eq('month_year', monthYearString);
+
+            if (hoursError) {
+                 console.error("Error fetching global hours data:", hoursError);
+                 showToast("Error al obtener datos de horas globales.", "error");
+                 return;
+            }
 
             let csvRows = ["Farmacia,Tarea,Empleado Asignado,Realizado Por,Fecha,Tipo,Estado,Tiempo Estimado (min),Tiempo Realizado (min),Enlace Web"];
 
             for (const pharmData of allPharmacyData) {
                 const pharmacyName = pharmacyNameMap[pharmData.id] || `ID ${pharmData.id}`;
                 const pharmTasks = pharmData.tasks || [];
-                const pharmEmployees = pharmData.employees || [];
+                const pharmEmployees = pharmData.employees || []; // Lista base de empleados (solo id, name, vacation)
+                
+                // Inyectar las horas planificadas correctas para este mes en la lista de empleados
+                const monthlyHours = allMonthlyData.filter(d => d.pharmacy_id === pharmData.id);
+                pharmEmployees.forEach(emp => {
+                    const empHours = monthlyHours.find(h => h.employee_id === emp.id);
+                    emp.plannedHours = empHours ? empHours.planned_hours : 0;
+                });
                 
                 // Filtros (si se quieren aplicar globalmente)
                 const tasksToExport = pharmTasks.filter(task => (filters.employee === 'all' || task.assignedTo == filters.employee) && (filters.type === 'all' || task.type === filters.type));
@@ -2292,7 +2469,7 @@
                 isAdminSession = sessionStorage.getItem('session_isAdmin') === 'true';
                 userRole = sessionStorage.getItem('userRole') || 'employee';
                 isLocked = userRole === 'employee' || sessionStorage.getItem('isLocked') === 'true';
-                listenToPharmacyData(currentPharmacyId);
+                listenToPharmacyData(currentPharmacyId); // Esto cargará los datos base Y las horas
                 showAppScreen();
             } else {
                 showLoginScreen();
@@ -2313,7 +2490,7 @@
 
                 header.addEventListener('click', () => {
                     if (content) {
-                        const isHidden = content.style.display === 'none';
+                        const isHidden = content.style.display === 'none' || content.style.display === '';
                         content.style.display = isHidden ? 'block' : 'none';
                         if (chevron) {
                             chevron.classList.toggle('rotate-180', isHidden);
@@ -2322,16 +2499,32 @@
                 });
             });
 
-            // Abrir "Filtros" y "Resumen Total" por defecto
-            document.getElementById('content-filtros').style.display = 'block';
-            document.querySelector('#toggle-filtros .chevron-icon')?.classList.add('rotate-180');
-            document.getElementById('content-resumen-total').style.display = 'block';
-            document.querySelector('#toggle-resumen-total .chevron-icon')?.classList.add('rotate-180');
+            // Abrir "Filtros" y "Resumen Total" por defecto (SOLO si no es login)
+            if(sessionPharmacyId) {
+                const contentFiltros = document.getElementById('content-filtros');
+                if (contentFiltros) {
+                    contentFiltros.style.display = 'block';
+                    document.querySelector('#toggle-filtros .chevron-icon')?.classList.add('rotate-180');
+                }
+                const contentResumen = document.getElementById('content-resumen-total');
+                if (contentResumen) {
+                    contentResumen.style.display = 'block';
+                    document.querySelector('#toggle-resumen-total .chevron-icon')?.classList.add('rotate-180');
+                }
+            }
 
 
             // Navegación Calendario
-            document.getElementById('prev-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderAll(); });
-            document.getElementById('next-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderAll(); });
+            document.getElementById('prev-month').addEventListener('click', async () => { 
+                currentDate.setMonth(currentDate.getMonth() - 1); 
+                await loadEmployeeHours(); // Cargar horas del nuevo mes
+                renderAll(); 
+            });
+            document.getElementById('next-month').addEventListener('click', async () => { 
+                currentDate.setMonth(currentDate.getMonth() + 1); 
+                await loadEmployeeHours(); // Cargar horas del nuevo mes
+                renderAll(); 
+            });
             
             // Filtros
             filterEmployeeSelect.addEventListener('change', (e) => { filters.employee = e.target.value; renderCalendar(); });
@@ -2601,15 +2794,13 @@
                             task.completedInstances[dateIndex].time = actualTime;
                             task.completedInstances[dateIndex].completedBy = completedBy;
                         }
-                        // Si la instancia no existe (aún no completada), el botón "Guardar"
-                        // NO hace nada, ya que el "toggle" es el que la crea.
                         
                     } else {
                         // Para tareas NO recurrentes, el empleado SÍ puede reasignar
                         task.assignedTo = parseInt(document.getElementById('task-assigned-to').value) || null;
                     }
                     
-                    await savePharmacyData();
+                    await savePharmacyData(true); // Solo guardar tareas, no horas
                     closeModal(taskModal);
                     return;
                 }
@@ -2662,14 +2853,14 @@
                     tasks[index] = taskData;
                 }
                 else tasks.push(taskData);
-                await savePharmacyData();
+                await savePharmacyData(true); // Solo guardar tareas
                 closeModal(taskModal);
             });
 
             document.getElementById('delete-task-btn').addEventListener('click', async () => {
                 const id = parseInt(document.getElementById('task-id').value);
                 tasks = tasks.filter(t => t.id !== id);
-                await savePharmacyData();
+                await savePharmacyData(true); // Solo guardar tareas
                 closeModal(taskModal);
             });
             
@@ -2711,7 +2902,7 @@
                     }
                 }
                 
-                await savePharmacyData();
+                await savePharmacyData(true); // Solo guardar tareas
                 openModal(task, instanceDate);
             });
             
