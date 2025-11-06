@@ -230,19 +230,19 @@
                 </div>
             </header>
 
-            <button id="addTaskBtn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300 protected-control">
+            <button id="addTaskBtn" class="w-full bg-blue-600 text-white font-semibold text-sm py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300 protected-control">
                 Añadir Nueva Tarea
             </button>
-             <button id="review-completed-btn" class="w-full bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-gray-300 transition-colors duration-300">
+             <button id="review-completed-btn" class="w-full bg-gray-200 text-gray-800 font-semibold text-sm py-2 px-4 rounded-lg shadow-sm hover:bg-gray-300 transition-colors duration-300">
                 Revisar Tareas Completadas
             </button>
-            <button id="print-view-btn" class="w-full bg-teal-600 text-white font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-teal-700 transition-colors duration-300">
+            <button id="print-view-btn" class="w-full bg-teal-600 text-white font-semibold text-sm py-2 px-4 rounded-lg shadow-sm hover:bg-teal-700 transition-colors duration-300">
                 Vista Imprimible
             </button>
-             <button id="export-csv-btn" class="w-full bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-emerald-700 transition-colors duration-300">
+             <button id="export-csv-btn" class="w-full bg-emerald-600 text-white font-semibold text-sm py-2 px-4 rounded-lg shadow-sm hover:bg-emerald-700 transition-colors duration-300">
                 Exportar Informe (CSV)
             </button>
-            <button id="user-manual-btn" class="w-full bg-gray-600 text-white font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-gray-700 transition-colors duration-300">
+            <button id="user-manual-btn" class="w-full bg-gray-600 text-white font-semibold text-sm py-2 px-4 rounded-lg shadow-sm hover:bg-gray-700 transition-colors duration-300">
                 Manual de Usuario
             </button>
             
@@ -344,9 +344,9 @@
                     </button>
                 </div>
            </div>
-           
+            
             <!-- Integración con Google Tasks -->
-            <div id="google-tasks-integration">
+            <div id="google-tasks-integration" class="hidden"> <!-- Oculto por ahora -->
                 <h2 id="toggle-google" class="text-lg font-semibold mb-3 border-b pb-2 flex justify-between items-center cursor-pointer">
                     <span>Integración con Google</span>
                     <svg class="chevron-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -628,7 +628,7 @@
                     <ul class="list-disc list-inside space-y-1">
                         <li><strong>Crear Tarea (Admin/Gerente):</strong> Haz clic en el botón "Añadir Nueva Tarea" o en un día vacío del calendario.</li>
                         <li><strong>Editar Tarea (Admin/Gerente):</strong> Haz clic sobre una tarea existente en el calendario.</li>
-                         <li><strong>Actualizar Tarea (Empleado):</strong> Haz clic en una tarea. Solo podrás cambiar el estado (pendiente/completada), el empleado asignado y el tiempo realizado.</li>
+                         <li><strong>Actualizar Tarea (Empleado):</strong> Haz clic en una tarea. Solo podrás cambiar el estado (pendiente/completada), el empleado asignado (en tareas no recurrentes) o el "realizado por" (en tareas recurrentes), y el tiempo realizado.</li>
                         <li><strong>Tipos de Tareas:</strong>
                             <ul class="list-circle list-inside ml-4">
                                 <li><strong>Puntual/Inaplazable/Anual:</strong> Tareas con una fecha de inicio y/o fin específica.</li>
@@ -639,7 +639,7 @@
                         <li><strong>Funciones Especiales:</strong>
                              <ul class="list-circle list-inside ml-4">
                                 <li><strong>Enlace Web:</strong> Puedes añadir una URL a cualquier tarea. Aparecerá un icono de enlace (🔗) en el calendario para un acceso rápido.</li>
-                                <li><strong>Modificar Tiempo Recurrente:</strong> Al editar una tarea recurrente en un día concreto, puedes introducir el "Tiempo Realizado" real para esa instancia, sin cambiar el tiempo estimado por defecto.</li>
+                                <li><strong>Modificar Tiempo Recurrente:</strong> Al editar una tarea recurrente en un día concreto, puedes introducir el "Tiempo Realizado" real para esa instancia y quién la ha "Realizado por". El "Asignado a" original no cambia.</li>
                              </ul>
                         </li>
                     </ul>
@@ -1416,6 +1416,17 @@
                 const plannedMinutes = (employee.plannedHours || 0) * 60;
                 const assignedPercentage = plannedMinutes > 0 ? ((totalAssignedTime / plannedMinutes) * 100).toFixed(1) : 0;
                 const completedPercentage = plannedMinutes > 0 ? ((totalCompletedTime / plannedMinutes) * 100).toFixed(1) : 0;
+                
+                // --- NUEVA BARRA DE PROGRESO ---
+                const progressPercentage = totalAssignedTime > 0 ? ((totalCompletedTime / totalAssignedTime) * 100).toFixed(0) : 0;
+                const progressBarHTML = `
+                    <div class="w-full bg-gray-200 rounded-full h-4 border border-gray-300 overflow-hidden mt-2">
+                        <div class="bg-green-600 h-4 rounded-full text-xs font-medium text-white text-center leading-normal" style="width: ${progressPercentage}%">
+                            ${progressPercentage > 15 ? `${progressPercentage}%` : ''}
+                        </div>
+                    </div>
+                `;
+                // --- FIN DE BARRA ---
 
 
                 employeeReportEl.innerHTML += `
@@ -1445,9 +1456,7 @@
                                 </div>
                              </div>
                         </div>
-                        <div class="w-full bg-gray-300 rounded-full h-2.5 mt-2">
-                            <div class="bg-green-500 h-2.5 rounded-full" style="width: ${totalAssignedTime > 0 ? (totalCompletedTime / totalAssignedTime) * 100 : 0}%"></div>
-                        </div>
+                        ${progressBarHTML}
                     </div>`;
             });
         };
@@ -2292,9 +2301,7 @@
             // Ocultar el campo de Client ID de Google ya que está prefijado
             const googleClientIdContainer = document.getElementById('google-client-id');
             if (googleClientIdContainer) {
-                 googleClientIdContainer.style.display = 'none'; // Ocultar el input
-                 const label = document.querySelector('label[for="google-client-id"]');
-                 if (label) label.style.display = 'none'; // Ocultar la etiqueta
+                 googleClientIdContainer.parentElement.style.display = 'none';
             }
 
             // --- Lógica de Colapsables ---
@@ -2594,8 +2601,8 @@
                             task.completedInstances[dateIndex].time = actualTime;
                             task.completedInstances[dateIndex].completedBy = completedBy;
                         }
-                        // Si la instancia no existe, el botón "Guardar" no hace nada
-                        // (solo el botón "Marcar Completada" la crea)
+                        // Si la instancia no existe (aún no completada), el botón "Guardar"
+                        // NO hace nada, ya que el "toggle" es el que la crea.
                         
                     } else {
                         // Para tareas NO recurrentes, el empleado SÍ puede reasignar
